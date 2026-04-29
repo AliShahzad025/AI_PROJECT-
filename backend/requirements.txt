@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+websockets
+opencv-python-headless
+mediapipe
+firebase-admin
+python-dotenv
+pydantic

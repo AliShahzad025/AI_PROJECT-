@@ -1,0 +1,6 @@
+{
+  "name": "ProctorAI: Smart Exam System",
+  "description": "Next-generation smart exam proctoring system using AI for secure, scalable online assessments.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": []
+}
