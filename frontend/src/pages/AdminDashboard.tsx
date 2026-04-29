@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppAuth } from '../lib/auth';
-import { logout, setUserRoleLocal, getExams, createExam, deleteExam, getSettings, updateSettings, getAllSubmissions } from '../lib/api';
+import { logout, setUserRole, getExams, createExam, deleteExam, getSettings, updateSettings, getAllSubmissions, subscribeToExams, subscribeToSettings, subscribeToSubmissions } from '../lib/api';
 import { ShieldCheck, LogOut, FileCheck2, Users, Settings, Save, RotateCcw, Calendar, Clock, Plus, Trash2, Search, X, AlignLeft, ListChecks, SortDesc, BrainCircuit, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Navigate, Link } from 'react-router-dom';
@@ -71,7 +71,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubExams = subscribeToExams((fetchedExams) => {
-      // Sort exams by date initially
       setExams(fetchedExams.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
     });
     const unsubSettings = subscribeToSettings((settings) => {

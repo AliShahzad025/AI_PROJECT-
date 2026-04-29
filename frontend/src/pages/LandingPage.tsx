@@ -11,9 +11,21 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const handlePortalAccess = () => {
-    if (user?.role === 'admin') navigate('/admin');
-    else if (user?.role === 'student') navigate('/student');
-    else navigate('/login');
+    console.log("Accessing portal, user:", user);
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (user.role === 'admin') {
+      navigate('/admin');
+    } else if (user.role === 'student') {
+      navigate('/student');
+    } else {
+      console.warn("User has no role, redirecting to login to select one.");
+      // If user exists but role is missing, we might need to select a role
+      navigate('/login');
+    }
   };
 
   return (

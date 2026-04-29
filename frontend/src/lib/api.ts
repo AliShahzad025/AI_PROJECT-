@@ -123,7 +123,7 @@ export const getSubmissionDetails = async (submissionId: string) => {
   return all.find((s: any) => s.id === submissionId);
 };
 
-// ---- Settings (Mock for now, as it's not implemented on backend) ----
+// ---- Settings (Mock for now) ----
 
 let mockSettings = {
   sensitivity: 'medium',
@@ -143,4 +143,41 @@ export const getSettings = async () => {
 export const updateSettings = async (settings: any) => {
   mockSettings = { ...mockSettings, ...settings };
   return mockSettings;
+};
+
+// ---- Subscriptions (Mocking real-time behavior for the UI) ----
+
+export const subscribeToExams = (callback: (exams: any[]) => void) => {
+  getExams().then(callback).catch(() => callback([]));
+  const interval = setInterval(() => getExams().then(callback), 10000);
+  return () => clearInterval(interval);
+};
+
+export const subscribeToSettings = (callback: (settings: any) => void) => {
+  getSettings().then(callback);
+  return () => {};
+};
+
+export const subscribeToSubmissions = (callback: (submissions: any[]) => void) => {
+  getAllSubmissions().then(callback).catch(() => callback([]));
+  const interval = setInterval(() => getAllSubmissions().then(callback), 10000);
+  return () => clearInterval(interval);
+};
+
+export const subscribeToStudentSubmissions = (studentId: string, callback: (submissions: any[]) => void) => {
+  getStudentSubmissions(studentId).then(callback).catch(() => callback([]));
+  const interval = setInterval(() => getStudentSubmissions(studentId).then(callback), 10000);
+  return () => clearInterval(interval);
+};
+
+export const setUserRole = async (uid: string, email: string, name: string, role: string) => {
+  // In a real app, this would be a PATCH to /api/auth/role
+  // For now, we update local storage and return
+  const user = getUser();
+  if (user && user.uid === uid) {
+    user.role = role;
+    localStorage.setItem('proctorai_user', JSON.stringify(user));
+    window.location.reload();
+  }
+  return { success: true };
 };

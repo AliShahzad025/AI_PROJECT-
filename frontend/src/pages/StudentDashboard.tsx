@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppAuth } from '../lib/auth';
-import { logout, setUserRoleLocal, getExams, getStudentSubmissions } from '../lib/api';
+import { logout, setUserRole, getExams, getStudentSubmissions, subscribeToExams, subscribeToStudentSubmissions } from '../lib/api';
 import { GraduationCap, LogOut, Calendar, Clock, Video, RotateCcw, AlertTriangle, Play, History, ShieldCheck, ShieldAlert, Timer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Navigate, Link, useNavigate } from 'react-router-dom';
