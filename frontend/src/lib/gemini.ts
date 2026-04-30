@@ -1,9 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
-const client = new GoogleGenAI({ 
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const client = apiKey ? new GoogleGenAI({ 
+  apiKey: apiKey,
   apiVersion: 'v1'
-});
+}) : null as any;
 
 export interface GeneratedQuestion {
   text: string;

@@ -4,6 +4,9 @@ import { motion } from 'motion/react';
 import { useAppAuth } from '../lib/auth';
 import { login, setUserRoleLocal } from '../lib/api';
 import { ShieldCheck, GraduationCap, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function LoginPage() {
   const { user, loading } = useAppAuth();
@@ -23,9 +26,24 @@ export default function LoginPage() {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
     try {
-      // We removed Firebase, using a generic login for this demo
-      // In a real scenario, you'd have a form for email/password.
-      await login("admin@proctorai.com", "admin123");
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      
+      const proctoraiUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName,
+        role: 'student', // Default role
+        createdAt: new Date().toISOString()
+      };
+      
+      // Save user to Firestore
+      await setDoc(doc(db, "users", firebaseUser.uid), proctoraiUser, { merge: true });
+      
+      localStorage.setItem('proctorai_user', JSON.stringify(proctoraiUser));
+      localStorage.setItem('proctorai_token', 'firebase-dummy-token-' + firebaseUser.uid);
+      
       window.location.reload();
     } catch (error: any) {
       setIsLoggingIn(false);
