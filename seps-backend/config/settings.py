@@ -9,9 +9,10 @@ class Settings(BaseSettings):
     # Firebase
     FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "serviceAccountKey.json")
     FIREBASE_STORAGE_BUCKET: str = os.getenv("FIREBASE_STORAGE_BUCKET", "")
+    PORT: int = 8000
     
     # Security
-    ALLOWED_ORIGINS: List[str] = ["*"]
+    ALLOWED_ORIGINS: str = "*" # Default to star, will be parsed in main.py if needed
     
     # AI Thresholds
     GAZE_DEVIATION_THRESHOLD_SECONDS: float = 3.0

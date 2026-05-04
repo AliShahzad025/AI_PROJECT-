@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, SyntheticEvent } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth';
 import { submitExam, getExamById, WS_URL } from '../lib/api';
-import { motion } from 'motion/react';
-import { Clock, ShieldCheck, Video, Send, ShieldAlert, Camera, Shield, Check, Mic, UserCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Clock, ShieldCheck, Send, ShieldAlert, Camera, Shield, Check, Mic, UserCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { GlassCard, GradientButton } from '../components/UI';
 
 export default function ExamRoom() {
   const { id } = useParams();
@@ -15,160 +16,137 @@ export default function ExamRoom() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [incidents, setIncidents] = useState<{ time: string, type: string }[]>([]);
   const [isAiConnected, setIsAiConnected] = useState(false);
   const [aiWarning, setAiWarning] = useState<string | null>(null);
   const [examData, setExamData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // WebSocket for AI Monitoring
   const socketRef = useRef<WebSocket | null>(null);
-
   const [verificationStage, setVerificationStage] = useState<'idle' | 'verifying' | 'completed'>('idle');
   const [verificationPhoto, setVerificationPhoto] = useState<string | null>(null);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const audioLevelRef = useRef(0);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  
+  // Ref for cleanup
+  const cleanupRefs = useRef<{
+    frameInterval?: NodeJS.Timeout;
+    audioInterval?: NodeJS.Timeout;
+    timerInterval?: NodeJS.Timeout;
+  }>({});
 
-  // Browser Lockdown
+  // 1. Browser Lockdown & Fullscreen
   useEffect(() => {
-    const requestFS = () => {
+    const enterFullscreen = () => {
       if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => { });
+        document.documentElement.requestFullscreen().catch(() => {});
       }
     };
-    requestFS();
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setIncidents(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Tab Switched / Out of Focus" }]);
-        toast.error("Warning: Tab switching is prohibited!");
+        const time = new Date().toLocaleTimeString();
+        setIncidents(prev => [...prev, { time, type: "Tab Switched" }]);
+        toast.error("Security Alert: Tab switching detected!");
+        
+        // Log to backend if connected
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({ type: 'alert', message: 'tab_switch' }));
+        }
       }
     };
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        setIncidents(prev => [...prev, { time: new Date().toLocaleTimeString(), type: "Exited Fullscreen" }]);
-        toast.error("Warning: You left fullscreen mode!");
+      if (!document.fullscreenElement && verificationStage === 'completed') {
+        toast.error("Please remain in fullscreen mode!");
+        enterFullscreen();
       }
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => { });
-      }
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, []);
+  }, [verificationStage, id]);
 
-  // WebSocket Connection & Frame Sending
+  // 2. Monitoring Intervals (Webcam 2s, Audio 5s)
   useEffect(() => {
-    if (!user || verificationStage !== 'completed' || isSubmitting || !stream) return;
+    if (verificationStage !== 'completed' || !stream || !user || isSubmitting) return;
 
-    const socket = new WebSocket(`${WS_URL}/monitor/${id}/${user.uid}`);
+    // WebSocket Setup
+    const socket = new WebSocket(`${WS_URL}/monitor/${id}`);
     socketRef.current = socket;
 
-    socket.onopen = () => {
-      console.log("AI Monitor Connected");
-      setIsAiConnected(true);
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    socket.onopen = () => setIsAiConnected(true);
+    socket.onmessage = (e) => {
+      const data = JSON.parse(e.data);
       if (data.type === 'alert') {
         setAiWarning(data.message);
         setIncidents(prev => [...prev, { time: new Date().toLocaleTimeString(), type: data.message }]);
-        toast.error(data.message);
+        toast.error(data.message, { icon: <ShieldAlert className="text-red-400" /> });
       }
     };
 
-    socket.onclose = () => {
-      console.log("AI Monitor Disconnected");
-      setIsAiConnected(false);
-    };
-
-    // Frame Sender Loop
-    const interval = setInterval(() => {
+    // Frame capture every 2s
+    cleanupRefs.current.frameInterval = setInterval(() => {
       if (socket.readyState === WebSocket.OPEN && videoRef.current && canvasRef.current) {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
+        const context = canvasRef.current.getContext('2d');
         if (context) {
-          canvas.width = 320; // Reduced size for bandwidth
-          canvas.height = 240;
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const base64Image = canvas.toDataURL('image/jpeg', 0.5);
-          socket.send(JSON.stringify({ image: base64Image }));
+          canvasRef.current.width = 320;
+          canvasRef.current.height = 240;
+          context.drawImage(videoRef.current, 0, 0, 320, 240);
+          const base64 = canvasRef.current.toDataURL('image/jpeg', 0.6);
+          socket.send(JSON.stringify({ type: 'frame', data: base64 }));
         }
       }
-    }, 1000); // Send 1 frame per second
+    }, 2000);
+
+    // Audio check every 5s (Mocked logic for now as full audio processing requires more setup)
+    cleanupRefs.current.audioInterval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        // Send a dummy audio event or actual chunk if implemented
+        socket.send(JSON.stringify({ type: 'audio_ping', timestamp: Date.now() }));
+      }
+    }, 5000);
 
     return () => {
-      clearInterval(interval);
+      clearInterval(cleanupRefs.current.frameInterval);
+      clearInterval(cleanupRefs.current.audioInterval);
       socket.close();
     };
-  }, [user, id, verificationStage, isSubmitting, stream]);
+  }, [verificationStage, stream, user, id, isSubmitting]);
 
-  // Audio Monitoring
-  useEffect(() => {
-    if (!stream || verificationStage !== 'completed') return;
-
-    const audioTrack = stream.getAudioTracks()[0];
-    if (!audioTrack) return;
-
-    const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const source = context.createMediaStreamSource(new MediaStream([audioTrack]));
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
-
-    analyserRef.current = analyser;
-    audioContextRef.current = context;
-
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const checkAudio = () => {
-      if (!analyserRef.current) return;
-      analyserRef.current.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-      const average = sum / bufferLength;
-
-      if (Math.abs(audioLevelRef.current - average) > 2) {
-        audioLevelRef.current = average;
-        setAudioLevel(average);
-      }
-    };
-
-    const audioInterval = setInterval(checkAudio, 100);
-
-    return () => {
-      clearInterval(audioInterval);
-      context.close();
-      analyserRef.current = null;
-      audioContextRef.current = null;
-    };
-  }, [stream, verificationStage]);
-
-  // Fetch exam data
+  // 3. Exam Timer & Data
   useEffect(() => {
     if (!id) return;
-    getExamById(id).then(exam => {
-      if (!exam) { toast.error('Exam not found.'); navigate('/student'); return; }
-      setExamData(exam);
-    }).catch(() => { toast.error('Failed to load exam.'); navigate('/student'); });
+    getExamById(id).then(data => {
+      setExamData(data);
+      if (data?.durationMinutes) setTimeLeft(data.durationMinutes * 60);
+    });
+
+    cleanupRefs.current.timerInterval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(cleanupRefs.current.timerInterval);
   }, [id]);
 
-  const questions: any[] = examData?.questions || [];
-
-  // Request camera access
+  // 4. Camera Init & Cleanup
   useEffect(() => {
     const initCamera = async () => {
       try {
@@ -176,140 +154,226 @@ export default function ExamRoom() {
         setStream(mediaStream);
         if (videoRef.current) videoRef.current.srcObject = mediaStream;
       } catch (err) {
-        toast.error("Camera access required.");
+        toast.error("Camera and Microphone access are required to take this exam.");
       }
     };
     initCamera();
+    
     return () => {
-      if (stream) stream.getTracks().forEach(track => track.stop());
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
 
-  // Timer logic
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
   const handleSubmit = async () => {
-    if (!user || isSubmitting) return;
+    if (isSubmitting) return;
     setIsSubmitting(true);
+    
+    // Stop all media
     if (stream) stream.getTracks().forEach(track => track.stop());
-
+    
     try {
-      const trustScore = Math.max(0, 100 - incidents.length * 15);
-      await submitExam(id || 'unknown', user.uid, user.name, user.email, answers, incidents, trustScore);
-      localStorage.setItem('examIncidents', JSON.stringify(incidents));
-      navigate(`/results/${id}`, { state: { incidentCount: incidents.length } });
+      const trustScore = Math.max(0, 100 - incidents.length * 10);
+      await submitExam(id!, user!.uid, user!.name, user!.email, answers, incidents, trustScore);
+      navigate(`/results/${id}`, { state: { incidents } });
+      toast.success("Exam submitted successfully!");
     } catch (err) {
-      toast.error("Submission failed. Please check your connection.");
+      toast.error("Submission error. Please contact support.");
       setIsSubmitting(false);
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   if (loading) return null;
-  if (!user) { navigate('/login'); return null; }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#FAFAFA] font-sans relative overflow-hidden flex flex-col select-none"
-      onCopy={e => e.preventDefault()} onPaste={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}>
-      
+    <div className="min-h-screen bg-[#050505] text-[#FAFAFA] select-none" onCopy={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}>
       <canvas ref={canvasRef} className="hidden" />
 
-      {verificationStage !== 'completed' && (
-        <div className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center p-6">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-            className="max-w-2xl w-full bg-[#0A0A0C] border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-            <h2 className="text-2xl font-display font-bold mb-8 text-center">Identity Verification</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-               <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-sm"><Camera className="text-indigo-400" /> Camera Ready</div>
-                  <div className="flex items-center gap-3 text-sm"><Shield className="text-indigo-400" /> AI Monitor Ready</div>
-               </div>
-               <div className="aspect-square bg-black rounded-2xl border border-white/10 overflow-hidden relative">
-                  <video autoPlay playsInline muted ref={v => { if (v) v.srcObject = stream; }} className="w-full h-full object-cover transform -scale-x-100" />
-                  {verificationPhoto && <div className="absolute inset-0 bg-green-500/20 backdrop-blur-sm flex items-center justify-center"><Check className="text-white w-12 h-12" /></div>}
-               </div>
-            </div>
-            <div className="flex gap-4">
-              <button onClick={() => {
-                const video = videoRef.current;
-                const canvas = document.createElement('canvas');
-                if (video) {
-                  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                  canvas.getContext('2d')?.drawImage(video, 0, 0);
-                  setVerificationPhoto(canvas.toDataURL('image/jpeg'));
-                }
-              }} className="flex-1 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold">Capture Snap</button>
-              <button disabled={!verificationPhoto} onClick={() => setVerificationStage('completed')}
-                className="flex-1 py-3 bg-indigo-600 rounded-xl text-sm font-bold disabled:opacity-50">Start Exam</button>
-            </div>
+      {/* Identity Verification Overlay */}
+      <AnimatePresence>
+        {verificationStage !== 'completed' && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-[#050505]/95 backdrop-blur-2xl flex items-center justify-center p-6"
+          >
+            <GlassCard className="max-w-2xl w-full p-8 text-center" hover={false}>
+              <h2 className="text-3xl font-display font-bold mb-2">Identity Check</h2>
+              <p className="text-white/40 mb-8">Please align your face within the frame to begin the session.</p>
+              
+              <div className="aspect-video bg-black rounded-3xl border border-white/10 mb-8 overflow-hidden relative">
+                <video autoPlay playsInline muted ref={videoRef} className="w-full h-full object-cover transform -scale-x-100" />
+                {verificationPhoto && (
+                  <div className="absolute inset-0 bg-indigo-500/20 backdrop-blur-md flex items-center justify-center">
+                    <Check className="w-16 h-16 text-white" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-4">
+                <GradientButton variant="secondary" className="flex-1" onClick={() => setVerificationPhoto('captured')}>
+                  Capture Photo
+                </GradientButton>
+                <GradientButton 
+                  className="flex-1" 
+                  disabled={!verificationPhoto} 
+                  onClick={() => {
+                    setVerificationStage('completed');
+                    document.documentElement.requestFullscreen().catch(() => {});
+                  }}
+                >
+                  Start Exam
+                </GradientButton>
+              </div>
+            </GlassCard>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      <nav className="h-16 border-b border-white/5 bg-[#0A0A0C] flex items-center justify-between px-6 sticky top-0 z-50">
+      {/* Header */}
+      <header className="h-20 border-b border-white/5 bg-glass sticky top-0 z-50 backdrop-blur-xl px-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-indigo-400" />
-          <span className="font-display font-medium">ProctorAI Secure Session</span>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
-            <Clock className="w-4 h-4 text-white/40" />
-            <span className="font-mono text-sm">{formatTime(timeLeft)}</span>
+          <ShieldCheck className="w-6 h-6 text-indigo-400" />
+          <div className="leading-tight">
+            <h1 className="font-display font-bold text-lg">Secure Exam Session</h1>
+            <p className="text-[10px] text-white/30 uppercase tracking-widest">{examData?.name || 'Loading...'}</p>
           </div>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="bg-indigo-600 px-4 py-1.5 rounded-lg text-sm font-medium">Submit</button>
         </div>
-      </nav>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-12 pb-32">
-        <h1 className="text-3xl font-display font-bold mb-8">{examData?.name || 'Exam'}</h1>
-        <div className="space-y-8">
-          {questions.map((q, index) => (
-            <div key={q.id} className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6">
-              <h3 className="text-lg font-medium mb-4">{index + 1}. {q.text}</h3>
-              {q.type === 'textarea' ? (
-                <textarea className="w-full bg-black border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 outline-none h-32"
-                  value={answers[q.id] || ""} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })} />
-              ) : (
-                <div className="space-y-2">
-                  {q.options?.map((opt: string) => (
-                    <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${answers[q.id] === opt ? 'border-indigo-500 bg-indigo-500/5' : 'border-white/5'}`}>
-                      <input type="radio" className="hidden" checked={answers[q.id] === opt} onChange={() => setAnswers({ ...answers, [q.id]: opt })} />
-                      <span className="text-sm">{opt}</span>
-                    </label>
-                  ))}
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3 bg-white/5 px-5 py-2 rounded-2xl border border-white/10">
+            <Clock className="w-5 h-5 text-indigo-400" />
+            <span className="font-mono text-xl font-bold">{formatTime(timeLeft)}</span>
+          </div>
+          <GradientButton onClick={handleSubmit} disabled={isSubmitting}>
+            Finish & Submit
+          </GradientButton>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-12 pb-40">
+        <div className="space-y-12">
+          {examData?.questions?.map((q: any, i: number) => (
+            <motion.div 
+              key={q.id}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <GlassCard>
+                <div className="flex gap-4 mb-6">
+                  <span className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold shrink-0">
+                    {i + 1}
+                  </span>
+                  <h3 className="text-xl font-medium text-white/90">{q.text}</h3>
                 </div>
-              )}
-            </div>
+
+                {q.type === 'mcq' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {q.options?.map((opt: string) => (
+                      <label 
+                        key={opt}
+                        className={`flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+                          answers[q.id] === opt ? 'bg-indigo-500/10 border-indigo-500/50 text-white' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'
+                        }`}
+                      >
+                        <input 
+                          type="radio" 
+                          className="hidden" 
+                          name={`q-${q.id}`} 
+                          checked={answers[q.id] === opt} 
+                          onChange={() => setAnswers({...answers, [q.id]: opt})} 
+                        />
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          answers[q.id] === opt ? 'border-indigo-400' : 'border-white/20'
+                        }`}>
+                          {answers[q.id] === opt && <div className="w-2 h-2 bg-indigo-400 rounded-full" />}
+                        </div>
+                        <span className="text-sm">{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <textarea 
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl p-6 text-white outline-none focus:border-indigo-500/50 transition-all min-h-[200px] placeholder:text-white/5"
+                    placeholder="Type your answer here..."
+                    value={answers[q.id] || ''}
+                    onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
+                  />
+                )}
+              </GlassCard>
+            </motion.div>
           ))}
         </div>
       </main>
 
-      <div className="fixed bottom-6 right-6 w-64 aspect-video bg-black rounded-xl overflow-hidden border border-white/20 shadow-2xl z-50">
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
-        {aiWarning && <div className="absolute inset-0 bg-red-500/50 flex items-center justify-center text-center p-4 text-xs font-bold uppercase">{aiWarning}</div>}
-        <div className="absolute bottom-2 left-2 flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isAiConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-[10px] uppercase font-bold text-white/50">{isAiConnected ? 'AI ACTIVE' : 'AI OFFLINE'}</span>
-        </div>
+      {/* Floating Webcam Monitor */}
+      <div className="fixed bottom-8 right-8 w-72 group">
+        <GlassCard className="p-2 overflow-hidden border-indigo-500/30">
+          <div className="aspect-video bg-black rounded-xl overflow-hidden relative">
+             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
+             
+             {/* AI Status Overlay */}
+             <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10">
+                <div className={`w-2 h-2 rounded-full ${isAiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-tighter">AI Monitor</span>
+             </div>
+
+             {/* Alerts overlay */}
+             <AnimatePresence>
+               {aiWarning && (
+                 <motion.div 
+                   initial={{ opacity: 0, y: 10 }} 
+                   animate={{ opacity: 1, y: 0 }} 
+                   exit={{ opacity: 0 }}
+                   className="absolute inset-0 bg-red-500/40 backdrop-blur-sm flex items-center justify-center p-4 text-center"
+                 >
+                   <div className="flex flex-col items-center gap-2">
+                     <AlertTriangle className="text-white w-8 h-8" />
+                     <p className="text-[10px] font-bold uppercase text-white drop-shadow-md">{aiWarning}</p>
+                   </div>
+                 </motion.div>
+               )}
+             </AnimatePresence>
+          </div>
+          <div className="mt-2 flex items-center justify-between px-2">
+             <span className="text-[10px] text-white/40 font-medium">TRUST SCORE</span>
+             <span className={`text-[10px] font-bold ${incidents.length > 5 ? 'text-red-400' : 'text-indigo-400'}`}>
+               {Math.max(0, 100 - incidents.length * 10)}%
+             </span>
+          </div>
+          <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
+             <motion.div 
+               className="h-full bg-indigo-500" 
+               initial={{ width: '100%' }}
+               animate={{ width: `${Math.max(0, 100 - incidents.length * 10)}%` }}
+             />
+          </div>
+        </GlassCard>
       </div>
+
+      {/* Connection Indicator */}
+      {!isAiConnected && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[60]">
+           <div className="bg-red-500 text-white text-[10px] font-bold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+             <ShieldAlert className="w-3 h-3" /> AI MONITOR OFFLINE - RECONNECTING
+           </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ClipboardIcon(props: any) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
   );
 }

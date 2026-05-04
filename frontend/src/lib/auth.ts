@@ -6,9 +6,16 @@ export function useAppAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const currentUser = getUser();
-    setUser(currentUser);
-    setLoading(false);
+    const fetchUser = () => {
+      const currentUser = getUser();
+      setUser(currentUser);
+      setLoading(false);
+    };
+    fetchUser();
+    
+    // Optional: listen for storage changes
+    window.addEventListener('storage', fetchUser);
+    return () => window.removeEventListener('storage', fetchUser);
   }, []);
 
   return { user, loading };

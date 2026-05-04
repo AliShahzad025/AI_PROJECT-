@@ -45,14 +45,14 @@ export const login = async (email: string, password: string) => {
   return res.user;
 };
 
-export const register = async (email: string, password: string, name: string) => {
+export const register = async (email: string, password: string, displayName: string, role: string) => {
   const res = await fetchAPI("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password, name })
+    body: JSON.stringify({ email, password, displayName, role })
   });
-  localStorage.setItem('proctorai_token', res.token);
-  localStorage.setItem('proctorai_user', JSON.stringify(res.user));
-  return res.user;
+  // The backend returns user_data directly in register_user
+  localStorage.setItem('proctorai_user', JSON.stringify(res));
+  return res;
 };
 
 export const logout = () => {
@@ -170,14 +170,35 @@ export const subscribeToStudentSubmissions = (studentId: string, callback: (subm
   return () => clearInterval(interval);
 };
 
+export const getUsers = async () => {
+  return await fetchAPI("/users/");
+};
+
+export const verifyUser = async (uid: string) => {
+  return await fetchAPI(`/users/${uid}/verify`, { method: "POST" });
+};
+
+export const deleteUser = async (uid: string) => {
+  return await fetchAPI(`/users/${uid}`, { method: "DELETE" });
+};
+
+export const subscribeToUsers = (callback: (users: any[]) => void) => {
+  getUsers().then(callback).catch(() => callback([]));
+  const interval = setInterval(() => getUsers().then(callback), 10000);
+  return () => clearInterval(interval);
+};
+
 export const setUserRole = async (uid: string, email: string, name: string, role: string) => {
-  // In a real app, this would be a PATCH to /api/auth/role
-  // For now, we update local storage and return
+  const res = await fetchAPI(`/users/${uid}/role`, { 
+    method: "POST",
+    body: JSON.stringify({ role })
+  });
+  
   const user = getUser();
   if (user && user.uid === uid) {
     user.role = role;
     localStorage.setItem('proctorai_user', JSON.stringify(user));
     window.location.reload();
   }
-  return { success: true };
+  return res;
 };

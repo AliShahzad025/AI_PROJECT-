@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isInstructorOfExamSession(sessionId) {
+      let sessionData = firestore.get(/databases/(default)/documents/examSessions/$(sessionId)).data;
+      let examId = sessionData.examId;
+      let examData = firestore.get(/databases/(default)/documents/exams/$(examId)).data;
+      return isAuthenticated() && examData.instructorId == request.auth.uid;
+    }
+
+    // Evidence images
+    match /evidence/images/{sessionId}/{filename} {
+      // Writable by service account (bypasses rules)
+      // Readable by exam's instructor and admins
+      allow read: if isAdmin() || isInstructorOfExamSession(sessionId);
+      allow write: if false; // Only service account
+    }
+
+    // Evidence audio
+    match /evidence/audio/{sessionId}/{filename} {
+      allow read: if isAdmin() || isInstructorOfExamSession(sessionId);
+      allow write: if false; // Only service account
+    }
+
+    // Profile photos
+    match /profile-photos/{userId}/{filename} {
+      // Writable by that user only, readable by authenticated users
+      allow read: if isAuthenticated();
+      allow write: if isUser(userId);
+    }
+  }
+}

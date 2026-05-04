@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from services.exam_service import exam_service
 from utils.helpers import get_current_user, require_role
 from models.exam import ExamCreate, ExamUpdate

@@ -20,6 +20,7 @@ class AuthService:
                 "uid": uid,
                 "email": decoded_token.get('email'),
                 "role": user_data.get('role', 'student'),
+                "isVerified": user_data.get('isVerified', False),
                 "displayName": user_data.get('displayName', decoded_token.get('name', ''))
             }
         except Exception as e:
@@ -30,7 +31,7 @@ class AuthService:
 
     @staticmethod
     async def register_user(email: str, password: str, display_name: str, role: str):
-        if role not in ["student", "instructor"]:
+        if role not in ["student", "instructor", "admin"]:
             raise HTTPException(status_code=400, detail="Invalid role")
             
         try:
@@ -49,6 +50,7 @@ class AuthService:
                 "role": role,
                 "createdAt": datetime.datetime.now(),
                 "isActive": True,
+                "isVerified": True if role == "student" else False,
                 "profilePhotoURL": None,
                 "lastLogin": None
             }

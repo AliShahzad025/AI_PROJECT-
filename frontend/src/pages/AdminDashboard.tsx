@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Navigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { generateAIQuestions } from '../lib/gemini';
+import { GlassCard, GradientButton } from '../components/UI';
+
 
 export default function AdminDashboard() {
   const { user, loading } = useAppAuth();
@@ -216,23 +218,23 @@ export default function AdminDashboard() {
         <h1 className="text-3xl font-display font-bold mb-8">Dashboard Overview</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <motion.div whileHover={{ y: -4 }} className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6">
+          <GlassCard className="flex flex-col">
             <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-4">
               <FileCheck2 className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="text-sm text-white/50 mb-1">Active Exams</div>
             <div className="text-3xl font-semibold">{exams.length}</div>
-          </motion.div>
+          </GlassCard>
 
-          <motion.div whileHover={{ y: -4 }} className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6">
+          <GlassCard className="flex flex-col">
             <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4">
               <Users className="w-5 h-5 text-blue-400" />
             </div>
             <div className="text-sm text-white/50 mb-1">Total Submissions</div>
             <div className="text-3xl font-semibold">{submissions.length}</div>
-          </motion.div>
+          </GlassCard>
 
-          <motion.div whileHover={{ y: -4 }} className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6">
+          <GlassCard className="flex flex-col">
             <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center mb-4">
               <ShieldCheck className="w-5 h-5 text-red-400" />
             </div>
@@ -240,11 +242,12 @@ export default function AdminDashboard() {
             <div className="text-3xl font-semibold text-red-400">
               {submissions.filter(s => (s.incidents?.length || 0) > 0).length}
             </div>
-          </motion.div>
+          </GlassCard>
         </div>
 
         {/* Schedule & Calendar View */}
-        <div className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6 mb-8 relative overflow-hidden flex flex-col">
+        <GlassCard className="mb-8 relative overflow-hidden flex flex-col">
+
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2 text-lg font-medium">
               <Calendar className="w-5 h-5 text-blue-400" />
@@ -396,11 +399,12 @@ export default function AdminDashboard() {
               )}
             </div>
           )}
-        </div>
+        </GlassCard>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6 flex flex-col">
+          <GlassCard className="flex flex-col">
             <h2 className="text-lg font-medium mb-4">Recent Submissions & Alerts</h2>
+
 
             {/* Search + Filter bar */}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -450,13 +454,14 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </GlassCard>
 
-          <div className="bg-[#0A0A0C] border border-white/10 rounded-2xl p-6">
+          <GlassCard>
             <div className="flex items-center gap-2 mb-6 text-lg font-medium">
               <Settings className="w-5 h-5 text-indigo-400" />
               <h2>Exam Settings & Rules</h2>
             </div>
+
 
             <div className="flex flex-col gap-6">
               <div>
@@ -557,7 +562,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </div>
-          </div>
+          </GlassCard>
         </div>
       </main>
     </div>

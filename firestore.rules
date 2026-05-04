@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+    
+    function isInstructor() {
+      return isAuthenticated() && getUserData().role == 'instructor';
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && getUserData().role == 'student';
+    }
+
+    // 1. COLLECTION: users
+    match /users/{userId} {
+      // Users can only read/write their own user document
+      // Admins have full read/write access
+      allow read, write: if isUser(userId) || isAdmin();
+    }
+
+    // 2. COLLECTION: exams
+    match /exams/{examId} {
+      // Students can read exams where their UID is in enrolledStudents
+      // Instructors can read all exams they own, admins all
+      // Instructors can create/update/delete exams they own
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        (isStudent() && request.auth.uid in resource.data.enrolledStudents) ||
+        (isInstructor() && resource.data.instructorId == request.auth.uid)
+      );
+      
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isInstructor() && request.resource.data.instructorId == request.auth.uid)
+      );
+      
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isInstructor() && resource.data.instructorId == request.auth.uid)
+      );
+    }
+
+    // 3. COLLECTION: examSessions
+    match /examSessions/{sessionId} {
+      // Students can only create/read their own examSessions
+      // Instructors can read all examSessions for their exams
+      // Admins have full read/write access
+      
+      function getExamInstructorId(examId) {
+        return get(/databases/$(database)/documents/exams/$(examId)).data.instructorId;
+      }
+      
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isStudent() && resource.data.studentId == request.auth.uid) ||
+        (isInstructor() && getExamInstructorId(resource.data.examId) == request.auth.uid)
+      );
+      
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isStudent() && request.resource.data.studentId == request.auth.uid)
+      );
+      
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isStudent() && resource.data.studentId == request.auth.uid)
+      );
+    }
+
+    // 4. COLLECTION: monitoringAlerts
+    match /monitoringAlerts/{alertId} {
+      // Instructors can read all monitoringAlerts for their exams
+      // Admins have full read/write access
+      // Backend service account has full access (bypasses these rules)
+      // Users cannot create alerts directly
+      
+      function getExamInstructorId(examId) {
+        return get(/databases/$(database)/documents/exams/$(examId)).data.instructorId;
+      }
+      
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isInstructor() && getExamInstructorId(resource.data.examId) == request.auth.uid)
+      );
+      
+      allow create: if false; // Only backend service account can create
+      
+      // Instructors can update to review the alert
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isInstructor() && getExamInstructorId(resource.data.examId) == request.auth.uid)
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // 5. COLLECTION: systemConfig
+    match /systemConfig/{docId} {
+      // Admins have full access
+      // Others can only read
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

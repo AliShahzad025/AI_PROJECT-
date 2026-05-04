@@ -20,9 +20,14 @@ async def get_user(uid: str, current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await user_service.get_user_profile(uid)
 
-@router.put("/{uid}")
-async def update_user(uid: str, data: UserUpdate, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] != 'admin' and current_user['uid'] != uid:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return await user_service.update_user(uid, data.dict(exclude_unset=True))
+@router.post("/{uid}/verify")
+async def verify_user(uid: str, user: dict = Depends(require_role(["admin"]))):
+    return await user_service.update_user(uid, {"isVerified": True})
+
+@router.post("/{uid}/role")
+async def update_role(uid: str, role: str, user: dict = Depends(require_role(["admin"]))):
+    return await user_service.update_user(uid, {"role": role})
+
+@router.delete("/{uid}")
+async def delete_user(uid: str, user: dict = Depends(require_role(["admin"]))):
+    return await user_service.delete_user(uid)
