@@ -10,7 +10,7 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     'Content-Type': 'application/json',
     ...options.headers,
   };
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -20,9 +20,9 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
       ...options,
       headers,
     });
-    
+
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.detail || 'An error occurred');
     }
@@ -155,7 +155,7 @@ export const subscribeToExams = (callback: (exams: any[]) => void) => {
 
 export const subscribeToSettings = (callback: (settings: any) => void) => {
   getSettings().then(callback);
-  return () => {};
+  return () => { };
 };
 
 export const subscribeToSubmissions = (callback: (submissions: any[]) => void) => {
