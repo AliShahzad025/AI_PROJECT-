@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 
-const API_URL = "http://localhost:8000/api";
-export const WS_URL = "ws://localhost:8000/ws";
+const API_URL = "http://127.0.0.1:8000/api";
+export const WS_URL = "ws://127.0.0.1:8000/ws";
 
 // Helper for making API calls
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
@@ -45,20 +45,30 @@ export const login = async (email: string, password: string) => {
   return res.user;
 };
 
-export const register = async (email: string, password: string, displayName: string, role: string) => {
+export const googleLogin = async (idToken: string) => {
+  const res = await fetchAPI("/auth/google-login", {
+    method: "POST",
+    body: JSON.stringify({ idToken })
+  });
+  localStorage.setItem('proctorai_token', res.token);
+  localStorage.setItem('proctorai_user', JSON.stringify(res.user));
+  return res.user;
+};
+
+export const register = async (email: string, password: string, name: string, role: string) => {
   const res = await fetchAPI("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password, displayName, role })
+    body: JSON.stringify({ email, password, name, role })
   });
-  // The backend returns user_data directly in register_user
-  localStorage.setItem('proctorai_user', JSON.stringify(res));
-  return res;
+  localStorage.setItem('proctorai_token', res.token);
+  localStorage.setItem('proctorai_user', JSON.stringify(res.user));
+  return res.user;
 };
 
 export const logout = () => {
   localStorage.removeItem('proctorai_token');
   localStorage.removeItem('proctorai_user');
-  window.location.href = '/login';
+  window.dispatchEvent(new Event('proctorai_auth_change'));
 };
 
 export const getUser = () => {
@@ -72,7 +82,7 @@ export const setUserRoleLocal = (role: 'admin' | 'student') => {
   if (user) {
     user.role = role;
     localStorage.setItem('proctorai_user', JSON.stringify(user));
-    window.location.reload();
+    window.dispatchEvent(new Event('proctorai_auth_change'));
   }
 };
 
@@ -198,7 +208,7 @@ export const setUserRole = async (uid: string, email: string, name: string, role
   if (user && user.uid === uid) {
     user.role = role;
     localStorage.setItem('proctorai_user', JSON.stringify(user));
-    window.location.reload();
+    window.dispatchEvent(new Event('proctorai_auth_change'));
   }
   return res;
 };

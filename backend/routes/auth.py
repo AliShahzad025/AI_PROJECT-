@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import firebase_admin
-from firebase_admin import firestore
+from firebase_admin import firestore, auth
 import uuid
 import datetime
 # Basic implementation for JWT token generation
@@ -18,6 +18,10 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     name: str
+    role: str
+
+class GoogleLoginRequest(BaseModel):
+    idToken: str
 
 def get_db():
     try:
@@ -32,7 +36,7 @@ def login(req: LoginRequest):
     if not db:
         # Mock mode if Firebase isn't configured
         token = jwt.encode({"uid": "mock_uid", "role": "student", "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)}, SECRET_KEY, algorithm="HS256")
-        return {"token": token, "user": {"uid": "mock_uid", "email": req.email, "name": "Mock User", "role": "student"}}
+        return {"token": token, "user": {"uid": "mock_uid", "email": req.email, "name": "Mock User", "role": "student", "isActive": True}}
 
     # Query Firestore for the user
     users_ref = db.collection('users')
@@ -46,33 +50,123 @@ def login(req: LoginRequest):
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # In a real app, verify hashed password. For this migration, assuming plaintext for simplicity or just basic check.
     if user_doc.get('password') != req.password:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    # Check if user is active
+    if not user_doc.get('isActive', True):
+        raise HTTPException(status_code=403, detail="Account pending verification. Please contact administrator.")
+
     token = jwt.encode({"uid": user_doc['uid'], "role": user_doc.get('role', 'student'), "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)}, SECRET_KEY, algorithm="HS256")
-    return {"token": token, "user": {"uid": user_doc['uid'], "email": user_doc['email'], "name": user_doc.get('name', 'User'), "role": user_doc.get('role', 'student')}}
+    return {"token": token, "user": {
+        "uid": user_doc['uid'], 
+        "email": user_doc['email'], 
+        "name": user_doc.get('name', 'User'), 
+        "role": user_doc.get('role', 'student'),
+        "isActive": user_doc.get('isActive', True)
+    }}
 
 @router.post("/register")
 def register(req: RegisterRequest):
     db = get_db()
     uid = str(uuid.uuid4())
+    
+    # Non-students need admin approval
+    is_active = True if req.role == 'student' else False
+    
     user_data = {
         "email": req.email,
-        "password": req.password, # Note: Hash this in a production environment!
+        "password": req.password,
         "name": req.name,
-        "role": "student", # Default role
+        "role": req.role,
+        "isActive": is_active,
         "createdAt": datetime.datetime.utcnow().isoformat()
     }
     
     if db:
-        # Check if email exists
         users_ref = db.collection('users')
         query = users_ref.where('email', '==', req.email).limit(1).stream()
         if any(query):
             raise HTTPException(status_code=400, detail="Email already registered")
         
         db.collection('users').document(uid).set(user_data)
+        
+        # If not active, create a verification request
+        if not is_active:
+            db.collection('verificationRequests').add({
+                "uid": uid,
+                "email": req.email,
+                "displayName": req.name,
+                "requestedRole": req.role,
+                "status": "pending",
+                "submittedAt": firestore.SERVER_TIMESTAMP
+            })
     
-    token = jwt.encode({"uid": uid, "role": "student", "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)}, SECRET_KEY, algorithm="HS256")
-    return {"token": token, "user": {"uid": uid, "email": req.email, "name": req.name, "role": "student"}}
+    token = jwt.encode({"uid": uid, "role": req.role, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)}, SECRET_KEY, algorithm="HS256")
+    return {"token": token, "user": {
+        "uid": uid, 
+        "email": req.email, 
+        "name": req.name, 
+        "role": req.role,
+        "isActive": is_active
+    }}
+
+@router.post("/google-login")
+def google_login(req: GoogleLoginRequest):
+    db = get_db()
+    try:
+        # 1. Verify the Firebase ID Token
+        decoded_token = auth.verify_id_token(req.idToken)
+        uid = decoded_token['uid']
+        email = decoded_token.get('email')
+        name = decoded_token.get('name', 'Google User')
+        
+        if not db:
+            # Mock mode fallback
+            token = jwt.encode({"uid": uid, "role": "student", "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)}, SECRET_KEY, algorithm="HS256")
+            return {"token": token, "user": {"uid": uid, "email": email, "name": name, "role": "student", "isActive": True}}
+
+        # 2. Check if user exists in Firestore
+        user_ref = db.collection('users').document(uid)
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists:
+            # Create new user if they don't exist
+            user_data = {
+                "email": email,
+                "name": name,
+                "role": "student", # Default role for Google users
+                "isActive": True,
+                "createdAt": datetime.datetime.utcnow().isoformat(),
+                "provider": "google"
+            }
+            user_ref.set(user_data)
+            user_profile = {**user_data, "uid": uid}
+        else:
+            user_profile = user_doc.to_dict()
+            user_profile['uid'] = uid
+            
+        # 3. Check if user is active
+        if not user_profile.get('isActive', True):
+            raise HTTPException(status_code=403, detail="Account pending verification.")
+
+        # 4. Issue backend JWT
+        token = jwt.encode({
+            "uid": uid, 
+            "role": user_profile.get('role', 'student'), 
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        }, SECRET_KEY, algorithm="HS256")
+        
+        return {
+            "token": token, 
+            "user": {
+                "uid": uid,
+                "email": user_profile['email'],
+                "name": user_profile.get('name', 'User'),
+                "role": user_profile.get('role', 'student'),
+                "isActive": user_profile.get('isActive', True)
+            }
+        }
+    except Exception as e:
+        print(f"Google login error: {e}")
+        raise HTTPException(status_code=401, detail=str(e))

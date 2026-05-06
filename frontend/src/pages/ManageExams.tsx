@@ -1,91 +1,154 @@
 import React, { useState, useEffect } from 'react';
-import { GlassCard, GradientButton, PageHeader } from '../components/UI';
-import { Layout, Calendar, Trash2, Edit, Plus, Filter, Search, MoreHorizontal } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getExams } from '../lib/api';
+import { Layout } from '../components/Layout';
+import { PageHeader, GlassCard, GradientButton, StatusBadge } from '../components/UI';
+import { FileText, Plus, Eye, Edit, Trash2, Calendar, Clock, Users, ShieldAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAppAuth } from '../lib/auth';
+import { db } from '../lib/firebase';
+import { collection, query, where, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 export default function ManageExams() {
+  const { user } = useAppAuth();
+  const navigate = useNavigate();
   const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('All');
 
   useEffect(() => {
-    const fetchExams = async () => {
-      try {
-        const data = await getExams();
-        setExams(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchExams();
-  }, []);
+    if (!user) return;
+
+    const q = query(collection(db, 'exams'), where('instructorId', '==', user.uid));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setExams(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this exam? All student submissions and alerts will be preserved but the exam will no longer be accessible.")) return;
+    try {
+      await deleteDoc(doc(db, 'exams', id));
+      toast.success("Exam deleted successfully");
+    } catch (err) {
+      toast.error("Failed to delete exam");
+    }
+  };
+
+  const filteredExams = activeTab === 'All' 
+    ? exams 
+    : exams.filter(e => e.status.toLowerCase() === activeTab.toLowerCase());
 
   return (
-    <div className="min-h-screen bg-[#050505] p-8">
-      <div className="flex items-center justify-between mb-8">
-        <PageHeader title="Manage Exams" subtitle="View, edit, and monitor your current assessments." />
-        <Link to="/instructor/exams/create">
-          <GradientButton className="flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Create New Exam
-          </GradientButton>
-        </Link>
+    <Layout role="instructor">
+      <div className="flex justify-between items-start mb-8">
+        <PageHeader 
+          title="Manage Exams" 
+          subtitle="Create, edit, and monitor your assessments." 
+        />
+        <GradientButton className="flex items-center gap-2" onClick={() => navigate('/instructor/exams/create')}>
+          <Plus className="w-4 h-4" /> Create New Exam
+        </GradientButton>
       </div>
 
-      <GlassCard className="mb-8">
-        <div className="flex gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-            <input placeholder="Search exams by name or date..." className="w-full bg-[#050505] border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white outline-none focus:border-purple-500/50 transition-all" />
-          </div>
-          <GradientButton variant="secondary" className="flex items-center gap-2">
-            <Filter className="w-4 h-4" /> Status
-          </GradientButton>
-        </div>
-      </GlassCard>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {exams.map((exam) => (
-          <GlassCard key={exam.id} className="flex flex-col h-full group">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded-md ${
-                exam.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-white/5 text-white/40 border border-white/10'
-              }`}>
-                {exam.status || 'scheduled'}
-              </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => navigate(`/instructor/exams/${exam.id}/edit`)} className="p-2 hover:bg-white/5 rounded-lg text-white/40 hover:text-white transition-all">
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button className="p-2 hover:bg-red-500/10 rounded-lg text-white/40 hover:text-red-400 transition-all">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <h3 className="text-xl font-semibold text-white mb-2">{exam.name}</h3>
-            <div className="flex items-center gap-2 text-xs text-white/40 mb-6">
-              <Calendar className="w-3.5 h-3.5" /> {exam.date} @ {exam.time}
-            </div>
-
-            <div className="mt-auto pt-6 border-t border-white/5 flex gap-3">
-              <GradientButton 
-                variant="primary" 
-                className="flex-1 text-sm"
-                onClick={() => navigate(`/instructor/exams/${exam.id}/review`)}
-              >
-                Review Results
-              </GradientButton>
-              <GradientButton variant="secondary" className="px-3">
-                <MoreHorizontal className="w-4 h-4" />
-              </GradientButton>
-            </div>
-          </GlassCard>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-2xl w-fit">
+        {['All', 'Scheduled', 'Active', 'Completed', 'Cancelled'].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-[#00B4D8] text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+          >
+            {tab}
+          </button>
         ))}
       </div>
-    </div>
+
+      <GlassCard className="p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 border-b border-white/5">
+              <tr>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Exam Name</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Scheduled Date</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Duration</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Students</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filteredExams.length > 0 && filteredExams.map(exam => (
+                <tr key={exam.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold text-white mb-0.5">{exam.title || exam.name}</div>
+                    <div className="text-[10px] text-white/30 font-medium">{exam.questions?.length || 0} Questions</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {exam.date || (exam.scheduledDate?.toDate().toLocaleDateString())}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <Clock className="w-3.5 h-3.5" />
+                      {exam.duration || exam.durationMinutes} min
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <StatusBadge 
+                      status={exam.status} 
+                      variant={
+                        exam.status === 'active' ? 'danger' : 
+                        exam.status === 'completed' ? 'success' : 'info'
+                      } 
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <Users className="w-3.5 h-3.5" />
+                      {exam.enrolledStudents?.length || 0}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => navigate(`/instructor/exams/${exam.id}/review`)}
+                        className="p-2 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-[#00B4D8] hover:border-[#00B4D8]/20 transition-all"
+                        title="View Review"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/instructor/exams/${exam.id}/edit`)}
+                        className="p-2 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-white/30 transition-all"
+                        title="Edit Exam"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(exam.id)}
+                        className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                        title="Delete Exam"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredExams.length === 0 && !loading && (
+            <div className="py-20 text-center">
+              <FileText className="w-12 h-12 text-white/10 mx-auto mb-4" />
+              <p className="text-white/40 text-sm font-medium">No {activeTab.toLowerCase()} exams found</p>
+            </div>
+          )}
+        </div>
+      </GlassCard>
+    </Layout>
   );
 }

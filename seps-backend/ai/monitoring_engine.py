@@ -1,6 +1,7 @@
 from .face_detector import FaceDetector
 from .gaze_tracker import GazeTracker
 from .audio_analyzer import AudioAnalyzer
+from .object_detector import ObjectDetector
 from firebase.firebase_admin import db, bucket
 import datetime
 import uuid
@@ -10,10 +11,12 @@ class MonitoringEngine:
         self.face_detector = FaceDetector()
         self.gaze_tracker = GazeTracker()
         self.audio_analyzer = AudioAnalyzer()
+        self.object_detector = ObjectDetector()
 
     async def analyze_frame(self, frame_bytes: bytes, session_id: str, student_id: str, exam_id: str, student_name: str) -> dict:
         face_results = self.face_detector.detect(frame_bytes)
         gaze_results = self.gaze_tracker.analyze(frame_bytes, session_id)
+        object_results = self.object_detector.detect(frame_bytes)
         
         alerts = []
         
@@ -42,6 +45,15 @@ class MonitoringEngine:
                 "description": f"Student looking away ({gaze_results['direction']}) for {gaze_results['consecutive_seconds']} seconds."
             })
 
+        # Object detection logic
+        for violation in object_results["violations"]:
+            alerts.append({
+                "type": "unauthorized_object",
+                "severity": "high",
+                "confidence": violation["confidence"],
+                "description": f"Unauthorized object detected: {violation['object']}."
+            })
+
         # Save alerts to Firestore
         for alert in alerts:
             await self.save_alert({
@@ -58,7 +70,9 @@ class MonitoringEngine:
             "face_present": face_results["face_count"] > 0,
             "gaze_direction": gaze_results["direction"],
             "gaze_suspicious": gaze_results["is_suspicious"],
-            "alerts": alerts
+            "objects_detected": [obj["label"] for obj in object_results["objects"]],
+            "alerts": alerts,
+            "frame_with_boxes": object_results.get("frame_with_boxes") or face_results.get("frame_with_boxes")
         }
 
     async def analyze_audio_chunk(self, audio_bytes: bytes, session_id: str, student_id: str, exam_id: str, student_name: str) -> dict:

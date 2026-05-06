@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAppAuth } from '../lib/auth';
+import { useAppAuth, notifyAuthChange } from '../lib/auth';
 import { ShieldCheck, GraduationCap, ShieldAlert, ArrowLeft, Mail, Lock, User, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { GlassCard, GradientButton } from '../components/UI';
 import { toast } from 'sonner';
-import { register as apiRegister, login as apiLogin } from '../lib/api';
+import { register as apiRegister, login as apiLogin, googleLogin } from '../lib/api';
 
 export default function AuthPage() {
   const { user, loading } = useAppAuth();
@@ -52,13 +52,20 @@ export default function AuthPage() {
         }
         const newUser = await apiRegister(email, password, name, selectedRole);
         toast.success("Account created successfully!");
+        notifyAuthChange();
         if (selectedRole === 'student') {
-            window.location.reload();
+          navigate('/student');
+        } else {
+          navigate('/login'); // Wait for admin approval
         }
       } else {
-        await apiLogin(email, password);
+        const loggedInUser = await apiLogin(email, password);
         toast.success("Welcome back!");
-        window.location.reload();
+        notifyAuthChange();
+        // Navigate based on role immediately
+        if (loggedInUser.role === 'admin') navigate('/admin');
+        else if (loggedInUser.role === 'instructor') navigate('/instructor');
+        else navigate('/student');
       }
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
@@ -74,29 +81,21 @@ export default function AuthPage() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
+      const idToken = await firebaseUser.getIdToken();
       
-      // Check if user already exists in Firestore
-      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      // Call backend to verify token and get JWT
+      const loggedInUser = await googleLogin(idToken);
       
-      if (!userDoc.exists()) {
-        // New user from Google needs role selection
-        const proctoraiUser = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          name: firebaseUser.displayName,
-          role: null, // Forces role selection
-          isVerified: false,
-          createdAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, "users", firebaseUser.uid), proctoraiUser);
-        localStorage.setItem('proctorai_user', JSON.stringify(proctoraiUser));
-        toast.info("Please select your role to continue");
-      } else {
-        const userData = userDoc.data();
-        localStorage.setItem('proctorai_user', JSON.stringify(userData));
-        toast.success("Welcome back!");
+      notifyAuthChange();
+      toast.success("Welcome back!");
+      
+      if (loggedInUser.role === 'admin') navigate('/admin');
+      else if (loggedInUser.role === 'instructor') navigate('/instructor');
+      else if (loggedInUser.role === 'student') navigate('/student');
+      else {
+          // If for some reason role is still missing
+          toast.info("Please select your role to continue");
       }
-      window.location.reload();
     } catch (error: any) {
       toast.error("Authentication failed: " + error.message);
     } finally {
@@ -119,8 +118,11 @@ export default function AuthPage() {
       };
       await setDoc(doc(db, "users", user.uid), updatedUser, { merge: true });
       localStorage.setItem('proctorai_user', JSON.stringify(updatedUser));
+      notifyAuthChange();
       toast.success(`Role set to ${role}`);
-      window.location.reload();
+      if (role === 'admin') navigate('/admin');
+      else if (role === 'instructor') navigate('/instructor');
+      else navigate('/student');
     } catch (error: any) {
       toast.error("Failed to update role");
     } finally {
@@ -146,7 +148,7 @@ export default function AuthPage() {
             <p className="text-white/50 mb-8 leading-relaxed">
                 Your account as an <span className="text-amber-400 font-bold">{user.role}</span> requires administrator approval. Please contact your institution's system administrator.
             </p>
-            <GradientButton onClick={() => { localStorage.removeItem('proctorai_user'); window.location.reload(); }} variant="secondary" className="px-8">
+            <GradientButton onClick={() => { localStorage.removeItem('proctorai_user'); localStorage.removeItem('proctorai_token'); notifyAuthChange(); navigate('/login'); }} variant="secondary" className="px-8">
                 Sign Out
             </GradientButton>
         </motion.div>
@@ -189,7 +191,7 @@ export default function AuthPage() {
               />
             </div>
             <div className="mt-8 text-center">
-                 <button onClick={() => { localStorage.removeItem('proctorai_user'); window.location.reload(); }} className="text-white/30 hover:text-white text-xs transition-colors">Sign out and use a different account</button>
+                 <button onClick={() => { localStorage.removeItem('proctorai_user'); localStorage.removeItem('proctorai_token'); notifyAuthChange(); navigate('/login'); }} className="text-white/30 hover:text-white text-xs transition-colors">Sign out and use a different account</button>
             </div>
           </GlassCard>
         </motion.div>

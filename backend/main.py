@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, exams, monitor
+from routes import auth, exams, monitor, ai
 from dotenv import load_dotenv
 import os
 import firebase_admin
@@ -16,9 +16,15 @@ try:
     if not firebase_admin._apps:
         # Assuming there is a firebase-service-account.json in the backend directory
         # If not, this might fail, so we wrap in try-except
-        cred_path = os.getenv("FIREBASE_CREDENTIALS", "firebase-service-account.json")
+        # Check both current directory and parent directory for the service account key
+        cred_path = os.getenv("FIREBASE_CREDENTIALS", "serviceAccountKey.json")
+        parent_cred_path = os.path.join("..", cred_path)
+        
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+        elif os.path.exists(parent_cred_path):
+            cred = credentials.Certificate(parent_cred_path)
             firebase_admin.initialize_app(cred)
         else:
             print("Warning: Firebase service account file not found. Database operations will fail.")
@@ -40,6 +46,7 @@ app.add_middleware(
 # Include Routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(exams.router, prefix="/api/exams", tags=["Exams"])
+app.include_router(ai.router, prefix="/api/ai", tags=["AI Generator"])
 app.include_router(monitor.router, prefix="/ws", tags=["Monitoring"])
 
 @app.get("/")

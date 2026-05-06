@@ -38,7 +38,39 @@ export const GradientButton: React.FC<GradientButtonProps> = ({ children, classN
 
 export const PageHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, subtitle }) => (
   <div className="mb-8">
-    <h1 className="text-4xl font-display font-bold text-white mb-2">{title}</h1>
-    {subtitle && <p className="text-white/50 text-lg">{subtitle}</p>}
+    <h1 className="text-2xl font-display font-extrabold text-white mb-1">{title}</h1>
+    {subtitle && <p className="text-white/50 text-sm font-medium">{subtitle}</p>}
   </div>
 );
+
+export const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color?: string; onClick?: () => void }> = ({ title, value, icon, color = 'var(--accent-primary)', onClick }) => (
+  <GlassCard 
+    className={`p-5 flex flex-col gap-4 border-l-4 ${onClick ? 'cursor-pointer hover:bg-white/5' : ''}`}
+    style={{ borderLeftColor: color }}
+    onClick={onClick}
+  >
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-bold uppercase tracking-widest text-white/40">{title}</span>
+      <div className="p-2 rounded-lg bg-white/5 text-white/60">
+        {icon}
+      </div>
+    </div>
+    <div className="text-3xl font-display font-black text-white">{value}</div>
+  </GlassCard>
+);
+
+export const StatusBadge: React.FC<{ status: string; variant?: string }> = ({ status, variant = 'info' }) => {
+  const variants: any = {
+    success: 'bg-green-500/10 border-green-500/20 text-green-400',
+    warning: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400',
+    danger: 'bg-red-500/10 border-red-500/20 text-red-400',
+    info: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    accent: 'bg-[#00B4D8]/10 border-[#00B4D8]/20 text-[#00B4D8]',
+  };
+
+  return (
+    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${variants[variant]}`}>
+      {status}
+    </span>
+  );
+};

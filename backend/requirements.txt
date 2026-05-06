@@ -6,3 +6,4 @@ mediapipe
 firebase-admin
 python-dotenv
 pydantic
+requests

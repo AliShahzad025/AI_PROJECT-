@@ -32,11 +32,11 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#050505] text-[#FAFAFA] font-sans selection:bg-indigo-500/30">
       
       {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/5">
+      <nav className="fixed top-0 w-full z-50 bg-[#0D1117]/50 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-display font-bold text-xl tracking-tight">
-            <ShieldCheck className="w-6 h-6 text-indigo-400" />
-            <span>Proctor<span className="text-white/60">AI</span></span>
+            <ShieldCheck className="w-6 h-6 text-[#00B4D8]" />
+            <span>SEPS</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -44,18 +44,18 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-4">
             {!loading && user ? (
-              <button onClick={handlePortalAccess} className="bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-white/90 outline-none transition-all flex items-center gap-2 cursor-pointer">
+              <button onClick={handlePortalAccess} className="bg-[#00B4D8] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#00B4D8]/90 outline-none transition-all flex items-center gap-2 cursor-pointer">
                 Go to Dashboard <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
               <>
                 <Link to="/login">
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="hidden md:block text-sm font-medium hover:text-indigo-400 transition-colors cursor-pointer">
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="hidden md:block text-sm font-medium hover:text-[#00B4D8] transition-colors cursor-pointer text-white/60">
                     Log In
                   </motion.button>
                 </Link>
                 <Link to="/login">
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-white/90 outline-none transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-pointer">
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="bg-[#00B4D8] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#00B4D8]/90 outline-none transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(0,180,216,0.2)] hover:shadow-[0_0_25px_rgba(0,180,216,0.4)] cursor-pointer">
                     Portal Access <ArrowRight className="w-4 h-4" />
                   </motion.button>
                 </Link>
@@ -67,8 +67,8 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden flex flex-col items-center justify-center text-center px-6">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-indigo-600/20 blur-[120px] rounded-full pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-purple-600/20 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-[#00B4D8]/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#0077B6]/10 blur-[100px] rounded-full pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -76,25 +76,25 @@ export default function LandingPage() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="relative z-10 max-w-4xl mx-auto"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-indigo-300 mb-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-[#00B4D8] mb-8">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00B4D8] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00B4D8]"></span>
             </span>
-            ProctorAI 2.0 is now live
+            Smart Exam Proctoring System v2.0
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold font-display tracking-tight leading-[1.1] mb-6">
+          <h1 className="text-5xl md:text-7xl font-bold font-display tracking-tight leading-[1.1] mb-6 text-white">
              The intelligent standard for <br />
-            <span className="text-gradient">secure assessments.</span>
+            <span className="text-[#00B4D8]">secure assessments.</span>
           </h1>
-          <p className="text-lg md:text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Ensure academic integrity with AI-driven monitoring, real-time behavioral analytics, and seamless LMS integrations. The platform built for modern institutions.
+          <p className="text-lg md:text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed font-body">
+            Ensure academic integrity with AI-driven monitoring, real-time behavioral analytics, and seamless institutional workflows. The platform built for modern educators.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
              <Link to="/login">
-                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto bg-white text-black px-8 py-3.5 rounded-full font-medium hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] cursor-pointer">
-                  Start Free Trial
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto bg-[#00B4D8] text-white px-8 py-3.5 rounded-full font-bold hover:bg-[#00B4D8]/90 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,180,216,0.15)] hover:shadow-[0_0_30px_rgba(0,180,216,0.3)] cursor-pointer">
+                  Enter Portal <ArrowRight className="w-4 h-4" />
                 </motion.button>
              </Link>
           </div>
@@ -123,7 +123,7 @@ export default function LandingPage() {
                 <div className="w-64 border-r border-white/5 hidden md:block p-4 flex flex-col gap-4">
                   <div className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Live Exams</div>
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className={`p-3 rounded-lg border ${i === 1 ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-white/5 border-transparent'} flex items-center gap-3`}>
+                    <div key={i} className={`p-3 rounded-lg border ${i === 1 ? 'bg-[#00B4D8]/10 border-[#00B4D8]/20' : 'bg-white/5 border-transparent'} flex items-center gap-3`}>
                       <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs">
                         {['CS', 'MA', 'PH'][i-1]}
                       </div>
@@ -139,13 +139,13 @@ export default function LandingPage() {
                    <div className="absolute inset-0 flex items-center justify-center opacity-50">
                       <div className="w-64 h-64 border border-indigo-500/30 rounded-full flex items-center justify-center">
                         <div className="w-48 h-48 border border-white/10 rounded-full flex items-center justify-center">
-                          <Eye className="w-12 h-12 text-indigo-400 opacity-50" />
+                          <Eye className="w-12 h-12 text-[#00B4D8] opacity-50" />
                         </div>
                       </div>
                       
                       {/* Fake tracking lines */}
                       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                         <path d="M50 50 L20 20 M50 50 L80 30 M50 50 L70 80 M50 50 L30 70" stroke="rgba(99, 102, 241, 0.2)" strokeWidth="0.5" fill="none" />
+                         <path d="M50 50 L20 20 M50 50 L80 30 M50 50 L70 80 M50 50 L30 70" stroke="rgba(0, 180, 216, 0.2)" strokeWidth="0.5" fill="none" />
                       </svg>
                    </div>
                    
@@ -198,10 +198,10 @@ export default function LandingPage() {
 
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Feature 1 (Large) */}
-            <motion.div whileHover={{ y: -8 }} transition={{ type: "spring", stiffness: 300 }} className="md:col-span-2 bg-glass rounded-3xl p-8 glow-effect flex flex-col justify-between group overflow-hidden relative transition-shadow hover:shadow-[0_8px_30px_rgba(99,102,241,0.15)]">
-               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full group-hover:bg-indigo-500/20 transition-all duration-500" />
+            <motion.div whileHover={{ y: -8 }} transition={{ type: "spring", stiffness: 300 }} className="md:col-span-2 bg-glass rounded-3xl p-8 glow-effect flex flex-col justify-between group overflow-hidden relative transition-shadow hover:shadow-[0_8px_30px_rgba(0,180,216,0.15)]">
+               <div className="absolute top-0 right-0 w-64 h-64 bg-[#00B4D8]/10 blur-[80px] rounded-full group-hover:bg-[#00B4D8]/20 transition-all duration-500" />
                <div className="relative z-10 w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-6">
-                  <BrainCircuit className="w-7 h-7 text-indigo-400" />
+                  <BrainCircuit className="w-7 h-7 text-[#00B4D8]" />
                </div>
                <div className="relative z-10 mt-auto pt-32">
                   <h3 className="text-2xl font-bold font-display mb-2">AI Behavioral Analysis</h3>
@@ -284,7 +284,7 @@ export default function LandingPage() {
                      {/* Connector line */}
                      {i < 3 && <div className="hidden md:block absolute top-6 left-12 w-full h-[1px] bg-white/10" />}
                      
-                     <div className="relative z-10 w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center text-indigo-300 font-bold mb-6">
+                     <div className="relative z-10 w-12 h-12 rounded-full bg-[#00B4D8]/20 border border-[#00B4D8]/50 flex items-center justify-center text-[#00B4D8] font-bold mb-6">
                         {i + 1}
                      </div>
                      <h4 className="text-lg font-bold font-display mb-2">{step.title}</h4>
@@ -304,7 +304,7 @@ export default function LandingPage() {
                Join hundreds of institutions using ProctorAI to maintain academic integrity on a massive scale.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto bg-indigo-600 text-white px-8 py-4 rounded-full font-bold hover:bg-indigo-500 transition-all shadow-[0_0_40px_rgba(99,102,241,0.4)] hover:shadow-[0_0_60px_rgba(99,102,241,0.6)]">
+               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto bg-[#00B4D8] text-white px-8 py-4 rounded-full font-bold hover:bg-[#00B4D8]/90 transition-all shadow-[0_0_40px_rgba(0,180,216,0.4)] hover:shadow-[0_0_60px_rgba(0,180,216,0.6)]">
                  Start Your Free Trial
                </motion.button>
                <motion.button 

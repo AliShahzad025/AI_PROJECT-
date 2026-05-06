@@ -1,199 +1,358 @@
-import React, { useState } from 'react';
-import { GlassCard, GradientButton, PageHeader } from '../components/UI';
-import { useNavigate } from 'react-router-dom';
-import { Save, X, Plus, Trash2, BrainCircuit, Sparkles, Clock, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Layout } from '../components/Layout';
+import { PageHeader, GlassCard, GradientButton, StatusBadge } from '../components/UI';
+import { Plus, Trash2, ArrowRight, ArrowLeft, Check, ClipboardList, ListOrdered, Save } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAppAuth } from '../lib/auth';
+import { db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { motion } from 'motion/react';
 
 export default function CreateExam() {
+  const { user } = useAppAuth();
   const navigate = useNavigate();
-  const [examName, setExamName] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState(60);
+  const location = useLocation();
+  const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form State
+  const [examData, setExamData] = useState({
+    title: '',
+    description: '',
+    date: '',
+    time: '',
+    durationMinutes: 60,
+    maxStudents: 100
+  });
+
   const [questions, setQuestions] = useState<any[]>([]);
 
-  const addQuestion = (type: 'mcq' | 'essay') => {
-    setQuestions([...questions, { 
-      id: Date.now(), 
-      type, 
-      text: '', 
-      options: type === 'mcq' ? ['', '', '', ''] : [] 
+  useEffect(() => {
+    // Check if coming from AI Generator
+    if (location.state?.generatedQuestions) {
+      setQuestions(location.state.generatedQuestions);
+      setStep(2); // Start at questions step if pre-loaded
+    }
+  }, [location.state]);
+
+  const addQuestion = () => {
+    setQuestions([...questions, {
+      questionText: '',
+      questionType: 'mcq',
+      options: ['', '', '', ''],
+      correctAnswer: 'A'
     }]);
   };
 
-  const removeQuestion = (id: number) => {
-    setQuestions(questions.filter(q => q.id !== id));
+  const removeQuestion = (index: number) => {
+    setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
-    if (!examName || !date || !time) {
-      toast.error('Please fill in all basic exam details.');
+  const updateQuestion = (index: number, field: string, value: any) => {
+    const newQuestions = [...questions];
+    newQuestions[index] = { ...newQuestions[index], [field]: value };
+    setQuestions(newQuestions);
+  };
+
+  const updateOption = (qIndex: number, oIndex: number, value: string) => {
+    const newQuestions = [...questions];
+    newQuestions[qIndex].options[oIndex] = value;
+    setQuestions(newQuestions);
+  };
+
+  const handleSubmit = async () => {
+    if (!examData.title || !examData.date || !examData.time) {
+      toast.error("Please fill in all exam details");
+      setStep(1);
       return;
     }
-    toast.success('Exam created successfully!');
-    navigate('/instructor');
+
+    if (questions.length === 0) {
+      toast.error("Please add at least one question");
+      setStep(2);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'exams'), {
+        ...examData,
+        questions,
+        instructorId: user.uid,
+        instructorName: user.name,
+        status: 'scheduled',
+        enrolledStudents: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      toast.success("Exam created successfully!");
+      navigate('/instructor/exams');
+    } catch (err) {
+      toast.error("Failed to create exam");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <PageHeader title="Create New Exam" subtitle="Design your assessment and set proctoring rules." />
-          <div className="flex gap-4">
-            <GradientButton variant="secondary" onClick={() => navigate('/instructor')}>
-              Cancel
-            </GradientButton>
-            <GradientButton onClick={handleSave}>
-              Save Exam
-            </GradientButton>
-          </div>
-        </div>
+    <Layout role="instructor">
+      <PageHeader 
+        title="Create New Exam" 
+        subtitle="Design your assessment and set proctoring parameters." 
+      />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Basic Info */}
-            <GlassCard>
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <ClipboardIcon className="w-5 h-5 text-purple-400" />
-                Exam Details
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/50 mb-2">Exam Title</label>
+      {/* Step Indicator */}
+      <div className="flex items-center gap-4 mb-10 overflow-x-auto pb-2">
+        <StepIndicator active={step >= 1} current={step === 1} number={1} label="Exam Details" icon={<ClipboardList className="w-4 h-4" />} />
+        <div className="h-[1px] w-12 bg-white/5" />
+        <StepIndicator active={step >= 2} current={step === 2} number={2} label="Questions" icon={<ListOrdered className="w-4 h-4" />} />
+        <div className="h-[1px] w-12 bg-white/5" />
+        <StepIndicator active={step >= 3} current={step === 3} number={3} label="Review" icon={<Check className="w-4 h-4" />} />
+      </div>
+
+      <div className="max-w-4xl">
+        {step === 1 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <GlassCard className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Exam Title</label>
                   <input 
-                    value={examName}
-                    onChange={(e) => setExamName(e.target.value)}
-                    placeholder="e.g., Advanced Calculus Final" 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-purple-500/50 transition-all"
+                    required
+                    value={examData.title}
+                    onChange={e => setExamData({ ...examData, title: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                    placeholder="e.g. Midterm Mathematics"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">Date</label>
-                    <input 
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-purple-500/50 transition-all [color-scheme:dark]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">Start Time</label>
-                    <input 
-                      type="time"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white outline-none focus:border-purple-500/50 transition-all [color-scheme:dark]"
-                    />
-                  </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Description</label>
+                  <textarea 
+                    value={examData.description}
+                    onChange={e => setExamData({ ...examData, description: e.target.value })}
+                    className="w-full h-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                    placeholder="Describe the exam scope and instructions..."
+                  />
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Scheduled Date</label>
+                  <input 
+                    type="date"
+                    required
+                    value={examData.date}
+                    onChange={e => setExamData({ ...examData, date: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Start Time</label>
+                  <input 
+                    type="time"
+                    required
+                    value={examData.time}
+                    onChange={e => setExamData({ ...examData, time: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Duration (Minutes)</label>
+                  <input 
+                    type="number"
+                    min="10" max="480"
+                    value={examData.durationMinutes}
+                    onChange={e => setExamData({ ...examData, durationMinutes: parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Max Students</label>
+                  <input 
+                    type="number"
+                    value={examData.maxStudents}
+                    onChange={e => setExamData({ ...examData, maxStudents: parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-10">
+                <GradientButton className="px-10 py-4 flex items-center gap-2" onClick={() => setStep(2)}>
+                  Next Step <ArrowRight className="w-4 h-4" />
+                </GradientButton>
               </div>
             </GlassCard>
+          </motion.div>
+        )}
 
-            {/* Question Builder */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Question Bank</h2>
-                <div className="flex gap-2">
-                  <GradientButton variant="secondary" onClick={() => addQuestion('mcq')} className="text-xs py-1.5">
-                    + MCQ
-                  </GradientButton>
-                  <GradientButton variant="secondary" onClick={() => addQuestion('essay')} className="text-xs py-1.5">
-                    + Essay
-                  </GradientButton>
-                </div>
+        {step === 2 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            <div className="flex items-center justify-between mb-2">
+               <h2 className="text-xl font-display font-bold text-white">Question Bank</h2>
+               <div className="px-3 py-1 bg-[#00B4D8]/10 text-[#00B4D8] text-[10px] font-black uppercase tracking-widest rounded-full border border-[#00B4D8]/20">
+                {questions.length} questions
               </div>
+            </div>
 
-              {questions.map((q, i) => (
-                <GlassCard key={q.id} className="relative group">
-                  <button 
-                    onClick={() => removeQuestion(q.id)}
-                    className="absolute top-4 right-4 text-white/20 hover:text-red-400 transition-colors"
-                  >
+            {questions.map((q, qIndex) => (
+              <GlassCard key={qIndex} className="p-8 relative group">
+                <div className="absolute top-8 right-8 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button onClick={() => removeQuestion(qIndex)} className="p-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">
                     <Trash2 className="w-4 h-4" />
                   </button>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xs font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded">
-                      Q{i + 1}
-                    </span>
-                    <span className="text-xs text-white/40 uppercase tracking-widest font-bold">
-                      {q.type}
-                    </span>
+                </div>
+
+                <div className="flex items-start gap-6">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-sm font-black text-white/30 shrink-0">
+                    {qIndex + 1}
                   </div>
-                  <textarea 
-                    placeholder="Enter question text..."
-                    className="w-full bg-transparent border-none text-lg text-white outline-none resize-none placeholder:text-white/10"
-                    rows={2}
-                  />
-                  {q.type === 'mcq' && (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {q.options.map((opt: any, oi: number) => (
-                        <div key={oi} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-xl p-3">
-                          <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center text-[10px] text-white/40">
-                            {String.fromCharCode(65 + oi)}
-                          </div>
-                          <input 
-                            placeholder="Option..." 
-                            className="bg-transparent border-none text-sm text-white/70 outline-none w-full"
-                          />
-                        </div>
-                      ))}
+                  <div className="flex-1 space-y-6">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-2">Question Text</label>
+                      <textarea 
+                        required
+                        value={q.questionText}
+                        onChange={e => updateQuestion(qIndex, 'questionText', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00B4D8]/30 transition-all"
+                        placeholder="Enter question content..."
+                      />
                     </div>
-                  )}
-                </GlassCard>
-              ))}
 
-              {questions.length === 0 && (
-                <div className="text-center py-12 bg-white/5 border border-dashed border-white/10 rounded-2xl">
-                  <p className="text-white/20">No questions added yet. Use the buttons above or try AI generation.</p>
-                </div>
-              )}
-            </div>
-          </div>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                         <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-2">Type</label>
+                         <div className="flex p-1 bg-white/5 rounded-xl w-fit border border-white/5">
+                            {['mcq', 'short_answer'].map(type => (
+                              <button
+                                key={type}
+                                onClick={() => updateQuestion(qIndex, 'questionType', type)}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${q.questionType === type ? 'bg-[#00B4D8] text-white' : 'text-white/30 hover:text-white'}`}
+                              >
+                                {type.replace('_', ' ')}
+                              </button>
+                            ))}
+                         </div>
+                      </div>
+                      {q.questionType === 'mcq' && (
+                        <div className="flex-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-2">Correct Answer</label>
+                          <select 
+                            value={q.correctAnswer}
+                            onChange={e => updateQuestion(qIndex, 'correctAnswer', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-[#00B4D8] font-bold outline-none"
+                          >
+                            {['A', 'B', 'C', 'D'].map(opt => <option key={opt} value={opt} className="bg-[#0D1117]">Option {opt}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
 
-          <div className="space-y-6">
-            <GlassCard className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
-              <div className="flex items-center gap-2 mb-4">
-                <BrainCircuit className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-semibold text-white">AI Assistant</h3>
-              </div>
-              <p className="text-sm text-white/50 mb-4">
-                Describe your topic and we'll generate professional assessment questions for you.
-              </p>
-              <textarea 
-                placeholder="e.g., Quantum Mechanics basics for undergraduate students..."
-                className="w-full bg-[#050505] border border-white/10 rounded-xl p-4 text-sm text-white outline-none focus:border-indigo-500/50 mb-4"
-                rows={3}
-              />
-              <GradientButton className="w-full flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4" /> Generate Questions
-              </GradientButton>
-            </GlassCard>
-
-            <GlassCard>
-              <h3 className="font-semibold text-white mb-4">Exam Configuration</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/50">Duration (min)</span>
-                  <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-right text-sm" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/50">Lockdown Mode</span>
-                  <div className="w-10 h-5 bg-indigo-500 rounded-full relative">
-                    <div className="absolute top-1 right-1 w-3 h-3 bg-white rounded-full" />
+                    {q.questionType === 'mcq' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        {['A', 'B', 'C', 'D'].map((opt, oIndex) => (
+                          <div key={opt} className="relative">
+                            <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black ${q.correctAnswer === opt ? 'text-[#00B4D8]' : 'text-white/20'}`}>{opt}</span>
+                            <input 
+                              value={q.options[oIndex]}
+                              onChange={e => updateOption(qIndex, oIndex, e.target.value)}
+                              className={`w-full bg-white/5 border rounded-xl py-3 pl-10 pr-4 text-sm text-white outline-none transition-all ${q.correctAnswer === opt ? 'border-[#00B4D8]/30' : 'border-white/5'}`}
+                              placeholder={`Option ${opt}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
+              </GlassCard>
+            ))}
+
+            <button 
+              onClick={addQuestion}
+              className="w-full py-6 bg-white/5 border border-white/10 border-dashed rounded-3xl flex flex-col items-center justify-center gap-3 text-white/40 hover:bg-white/[0.08] hover:border-[#00B4D8]/30 hover:text-[#00B4D8] transition-all group"
+            >
+              <Plus className="w-8 h-8 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-black uppercase tracking-widest">Add New Question</span>
+            </button>
+
+            <div className="flex justify-between items-center pt-8">
+              <GradientButton variant="secondary" className="px-10 py-4 flex items-center gap-2" onClick={() => setStep(1)}>
+                <ArrowLeft className="w-4 h-4" /> Exam Details
+              </GradientButton>
+              <GradientButton className="px-10 py-4 flex items-center gap-2" onClick={() => setStep(3)}>
+                Review Exam <ArrowRight className="w-4 h-4" />
+              </GradientButton>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+            <GlassCard className="p-8">
+              <h3 className="text-xl font-display font-bold text-white mb-6">Final Review</h3>
+              
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Title</label>
+                   <p className="text-lg font-bold text-white">{examData.title}</p>
+                </div>
+                <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Status</label>
+                   <StatusBadge status="Ready to Launch" variant="success" />
+                </div>
+                <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Date & Time</label>
+                   <p className="text-sm text-white/60">{examData.date} at {examData.time}</p>
+                </div>
+                <div>
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Parameters</label>
+                   <p className="text-sm text-white/60">{examData.durationMinutes} minutes • {examData.maxStudents} Students</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#00B4D8]/10 flex items-center justify-center text-[#00B4D8]">
+                    <ListOrdered className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white">{questions.length} Questions Added</div>
+                    <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Multiple choice and short answer mixed</div>
+                  </div>
+                </div>
+                <button onClick={() => setStep(2)} className="text-[10px] font-black uppercase tracking-widest text-[#00B4D8] hover:underline">Edit Questions</button>
+              </div>
+
+              <div className="flex justify-between items-center pt-10 mt-10 border-t border-white/5">
+                <GradientButton variant="secondary" className="px-10 py-4 flex items-center gap-2" onClick={() => setStep(2)}>
+                  <ArrowLeft className="w-4 h-4" /> Back
+                </GradientButton>
+                <GradientButton 
+                  className="px-10 py-4 flex items-center gap-2" 
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Creating...' : <><Save className="w-4 h-4" /> Confirm & Create Exam</>}
+                </GradientButton>
               </div>
             </GlassCard>
-          </div>
-        </div>
+          </motion.div>
+        )}
       </div>
-    </div>
+    </Layout>
   );
 }
 
-function ClipboardIcon(props: any) {
+function StepIndicator({ number, label, active, current, icon }: any) {
   return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+    <div className={`flex items-center gap-3 whitespace-nowrap ${active ? 'opacity-100' : 'opacity-30'}`}>
+      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${current ? 'bg-[#00B4D8] border-[#00B4D8] text-white shadow-lg' : active ? 'bg-[#00B4D8]/10 border-[#00B4D8]/20 text-[#00B4D8]' : 'bg-white/5 border-white/10 text-white/20'}`}>
+        {current ? icon : (active ? <Check className="w-4 h-4" /> : number)}
+      </div>
+      <div>
+        <div className={`text-[10px] font-black uppercase tracking-widest ${current ? 'text-[#00B4D8]' : 'text-white/40'}`}>Step {number}</div>
+        <div className={`text-xs font-bold ${current ? 'text-white' : 'text-white/40'}`}>{label}</div>
+      </div>
+    </div>
   );
 }
