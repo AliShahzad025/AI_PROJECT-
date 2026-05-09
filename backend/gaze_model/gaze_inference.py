@@ -162,12 +162,16 @@ class GazeInference:
             
             # RAW DEBUG LOG
             print(f"RAW AI DATA -> Yaw: {yaw_deg:.2f}, Pitch: {pitch_deg:.2f}")
-                
+
             gaze_zone = "center"
-            if yaw_deg < -15: gaze_zone = "left"
-            elif yaw_deg > 15: gaze_zone = "right"
-            elif pitch_deg < -15: gaze_zone = "down"
-            elif pitch_deg > 15: gaze_zone = "up"
+            if yaw_deg < -10:
+                gaze_zone = "left"
+            elif yaw_deg > 10:
+                gaze_zone = "right"
+            elif pitch_deg < -10:   # negative pitch = looking UP
+                gaze_zone = "DOWN"
+            elif pitch_deg > 10:    # positive pitch = looking DOWN (tighter threshold)
+                gaze_zone = "UP"
                 
             if gaze_zone != "center":
                 self.consecutive_non_center += 1

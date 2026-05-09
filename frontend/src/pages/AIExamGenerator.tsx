@@ -66,7 +66,10 @@ export default function AIExamGenerator() {
       if (!response.ok) throw new Error(data.error?.message || "Failed to generate");
 
       const rawContent = data.content[0].text;
-      const parsedQuestions = JSON.parse(rawContent.trim());
+      
+      // Clean up the response if it contains markdown backticks
+      const cleanContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsedQuestions = JSON.parse(cleanContent);
       
       // Normalize options if they don't have A:, B:, etc.
       const normalized = parsedQuestions.map((q: any) => {
@@ -111,7 +114,7 @@ export default function AIExamGenerator() {
     <Layout role="instructor">
       <PageHeader 
         title="AI Exam Generator" 
-        subtitle="Leverage Claude 3.5 Sonnet to generate high-quality assessment questions instantly." 
+        subtitle="Leverage Google Gemini 1.5 to generate high-quality assessment questions instantly." 
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -216,7 +219,7 @@ export default function AIExamGenerator() {
                   <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-[#00B4D8] animate-pulse" />
                 </div>
                 <h3 className="text-xl font-display font-bold text-white mb-2">{loadingText}</h3>
-                <p className="text-white/30 text-xs font-bold uppercase tracking-widest">Powered by Anthropic Claude 3.5</p>
+                <p className="text-white/30 text-xs font-bold uppercase tracking-widest">Powered by Google Gemini 1.5</p>
               </motion.div>
             ) : questions.length > 0 ? (
               <motion.div key="questions" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
