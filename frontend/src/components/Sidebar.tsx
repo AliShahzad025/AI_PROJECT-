@@ -22,6 +22,7 @@ const navItems = {
   instructor: [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/instructor' },
     { name: 'My Exams', icon: FileText, path: '/instructor/exams' },
+    { name: 'Enrollment Requests', icon: UserCheck, path: '/instructor/enrollments' },
     { name: 'Create Exam', icon: PlusSquare, path: '/instructor/exams/create' },
     { name: 'AI Exam Generator', icon: Sparkles, path: '/instructor/ai-generator' },
   ],

@@ -24,9 +24,7 @@ async def get_user(uid: str, current_user: dict = Depends(get_current_user)):
 async def verify_user(uid: str, user: dict = Depends(require_role(["admin"]))):
     return await user_service.update_user(uid, {"isVerified": True})
 
-@router.post("/{uid}/role")
-async def update_role(uid: str, role: str, user: dict = Depends(require_role(["admin"]))):
-    return await user_service.update_user(uid, {"role": role})
+
 
 @router.delete("/{uid}")
 async def delete_user(uid: str, user: dict = Depends(require_role(["admin"]))):

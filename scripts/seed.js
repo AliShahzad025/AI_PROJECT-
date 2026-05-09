@@ -188,8 +188,7 @@ async function seedData() {
       maxConcurrentStudents: 100,
       gazeDeviationThresholdSeconds: 3,
       audioAnomalyThreshold: 0.75,
-      evidenceRetentionDays: 90,
-      allowedBrowsers: ['Chrome', 'Firefox', 'Edge']
+      evidenceRetentionDays: 90
     });
 
     console.log('Seed completed successfully!');

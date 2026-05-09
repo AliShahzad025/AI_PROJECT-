@@ -198,17 +198,10 @@ export const subscribeToUsers = (callback: (users: any[]) => void) => {
   return () => clearInterval(interval);
 };
 
-export const setUserRole = async (uid: string, email: string, name: string, role: string) => {
-  const res = await fetchAPI(`/users/${uid}/role`, { 
+
+export const processGaze = async (frame: string, sessionId: string) => {
+  return await fetchAPI("/proctoring/gaze", {
     method: "POST",
-    body: JSON.stringify({ role })
+    body: JSON.stringify({ frame, session_id: sessionId })
   });
-  
-  const user = getUser();
-  if (user && user.uid === uid) {
-    user.role = role;
-    localStorage.setItem('proctorai_user', JSON.stringify(user));
-    window.dispatchEvent(new Event('proctorai_auth_change'));
-  }
-  return res;
 };

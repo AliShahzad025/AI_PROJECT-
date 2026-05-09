@@ -13,8 +13,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, role }) => {
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
-  if (user.role !== role) return <Navigate to="/" />;
   if (user.isActive === false) return <Navigate to="/login" />;
+  if (user.isVerified === false) return <Navigate to="/login" />;
+  if (user.role !== role) return <Navigate to="/" />;
 
   return (
     <div className="flex min-h-screen bg-[#0D1117]">

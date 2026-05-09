@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import auth, exams, monitor, ai
+from gaze_model import gaze_router
 from dotenv import load_dotenv
 import os
 import firebase_admin
@@ -48,6 +49,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(exams.router, prefix="/api/exams", tags=["Exams"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI Generator"])
 app.include_router(monitor.router, prefix="/ws", tags=["Monitoring"])
+app.include_router(gaze_router.router, prefix="/api/proctoring", tags=["Gaze Monitoring"])
 
 @app.get("/")
 def read_root():

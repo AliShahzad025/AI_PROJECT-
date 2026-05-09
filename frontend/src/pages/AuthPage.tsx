@@ -51,13 +51,9 @@ export default function AuthPage() {
           return;
         }
         const newUser = await apiRegister(email, password, name, selectedRole);
-        toast.success("Account created successfully!");
+        toast.success("Account created successfully! Admin approval is required.");
         notifyAuthChange();
-        if (selectedRole === 'student') {
-          navigate('/student');
-        } else {
-          navigate('/login'); // Wait for admin approval
-        }
+        navigate('/login'); // Show pending verification screen
       } else {
         const loggedInUser = await apiLogin(email, password);
         toast.success("Welcome back!");
@@ -114,7 +110,7 @@ export default function AuthPage() {
       const updatedUser = {
         ...user,
         role,
-        isVerified: role === 'student' // Students verified by default
+        isVerified: false // Everyone needs admin approval now
       };
       await setDoc(doc(db, "users", user.uid), updatedUser, { merge: true });
       localStorage.setItem('proctorai_user', JSON.stringify(updatedUser));

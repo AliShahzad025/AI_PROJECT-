@@ -17,6 +17,7 @@ import CreateExam from './pages/CreateExam';
 import EditExam from './pages/EditExam';
 import ExamReview from './pages/ExamReview';
 import AIExamGenerator from './pages/AIExamGenerator';
+import EnrollmentRequests from './pages/EnrollmentRequests';
 
 // Student
 import StudentDashboard from './pages/StudentDashboard';
@@ -24,6 +25,7 @@ import ExamList from './pages/ExamList';
 import ExamSession from './pages/ExamSession';
 import MyViolations from './pages/MyViolations';
 import ExamCompleted from './pages/ExamCompleted';
+import StudentProfile from './pages/StudentProfile';
 
 // Fallbacks
 import LandingPage from './pages/LandingPage';
@@ -52,6 +54,7 @@ export default function App() {
           <Route path="/instructor/exams/:examId/edit" element={<EditExam />} />
           <Route path="/instructor/exams/:examId/review" element={<ExamReview />} />
           <Route path="/instructor/ai-generator" element={<AIExamGenerator />} />
+          <Route path="/instructor/enrollments" element={<EnrollmentRequests />} />
           
           {/* Student Routes */}
           <Route path="/student" element={<StudentDashboard />} />
@@ -59,6 +62,7 @@ export default function App() {
           <Route path="/student/exams/:examId/session" element={<ExamSession />} />
           <Route path="/student/violations" element={<MyViolations />} />
           <Route path="/student/completed" element={<ExamCompleted />} />
+          <Route path="/student/profile" element={<StudentProfile />} />
           
           {/* Global Redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />

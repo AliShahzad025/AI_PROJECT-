@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { PageHeader, GlassCard, GradientButton, StatusBadge } from '../components/UI';
-import { Users, Search, Filter, Download, Trash2, Edit, Check, X } from 'lucide-react';
+import { Users, Search, Filter, Download, Trash2, Check, X } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -24,12 +24,25 @@ export default function UserManagement() {
 
   const toggleUserStatus = async (user: any) => {
     try {
+      const currentStatus = user.isActive === undefined ? true : user.isActive;
       await updateDoc(doc(db, 'users', user.id), {
-        isActive: !user.isActive
+        isActive: !currentStatus
       });
-      toast.success(`User ${user.isActive ? 'deactivated' : 'activated'} successfully`);
+      toast.success(`User ${currentStatus ? 'deactivated' : 'activated'} successfully`);
     } catch (err) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const toggleVerification = async (user: any) => {
+    try {
+      const currentStatus = user.isVerified === undefined ? false : user.isVerified;
+      await updateDoc(doc(db, 'users', user.id), {
+        isVerified: !currentStatus
+      });
+      toast.success(`User ${currentStatus ? 'unverified' : 'verified'} successfully`);
+    } catch (err) {
+      toast.error("Failed to update verification");
     }
   };
 
@@ -40,15 +53,6 @@ export default function UserManagement() {
       toast.success("User deleted successfully");
     } catch (err) {
       toast.error("Failed to delete user");
-    }
-  };
-
-  const changeRole = async (id: string, role: string) => {
-    try {
-      await updateDoc(doc(db, 'users', id), { role });
-      toast.success(`Role updated to ${role}`);
-    } catch (err) {
-      toast.error("Failed to update role");
     }
   };
 
@@ -143,6 +147,7 @@ export default function UserManagement() {
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">User</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Role</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Verified</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Status</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40">Joined</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-white/40 text-right">Actions</th>
@@ -163,21 +168,25 @@ export default function UserManagement() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <select 
-                      value={user.role}
-                      onChange={(e) => changeRole(user.id, e.target.value)}
-                      className="bg-transparent text-xs font-bold uppercase tracking-widest text-[#00B4D8] outline-none cursor-pointer"
-                    >
-                      <option value="student" className="bg-[#0D1117]">Student</option>
-                      <option value="instructor" className="bg-[#0D1117]">Instructor</option>
-                      <option value="admin" className="bg-[#0D1117]">Admin</option>
-                    </select>
+                    <span className="text-xs font-black uppercase tracking-widest text-[#00B4D8]">
+                      {user.role}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
-                    <StatusBadge 
-                      status={user.isActive ? 'Active' : 'Inactive'} 
-                      variant={user.isActive ? 'success' : 'danger'} 
-                    />
+                    <button onClick={() => toggleVerification(user)}>
+                      <StatusBadge 
+                        status={user.isVerified ? 'Verified' : 'Pending'} 
+                        variant={user.isVerified ? 'success' : 'warning'} 
+                      />
+                    </button>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => toggleUserStatus(user)}>
+                      <StatusBadge 
+                        status={(user.isActive !== false) ? 'Active' : 'Inactive'} 
+                        variant={(user.isActive !== false) ? 'success' : 'danger'} 
+                      />
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-sm text-white/40">
                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}

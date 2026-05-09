@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard, GradientButton } from '../components/UI';
+import { useGazeMonitor } from '../hooks/useGazeMonitor';
 
 const WS_URL = "ws://localhost:8000/ws";
 
@@ -38,6 +39,24 @@ export default function ExamSession() {
   const socketRef = useRef<WebSocket | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Gaze Monitoring Hook (Verified REST API)
+  const gaze = useGazeMonitor(sessionId || '', videoRef, canvasRef, !!sessionId && !isSubmitting);
+
+  // Sync AI violations with UI Alert Feed
+  useEffect(() => {
+    if (gaze.violations > 0 && gaze.currentZone !== 'center') {
+      const newAlert = {
+        type: 'gaze_away',
+        message: `Looked ${gaze.currentZone.toUpperCase()} for too long`,
+        severity: 'high',
+        time: new Date().toLocaleTimeString(),
+        details: `Gaze: ${gaze.currentZone}`
+      };
+      setAlerts(prev => [newAlert, ...prev].slice(0, 5));
+      setLastAlert(newAlert);
+    }
+  }, [gaze.violations]);
+
   // 1. Initial Setup
   useEffect(() => {
     const startExam = async () => {
@@ -60,10 +79,10 @@ export default function ExamSession() {
         });
         setSessionId(sessionRef.id);
 
-        // Fullscreen
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }
+        // Fullscreen (Temporarily disabled for debugging)
+        // if (document.documentElement.requestFullscreen) {
+        //   document.documentElement.requestFullscreen().catch(() => {});
+        // }
 
         setLoading(false);
       } catch (err) {
@@ -377,12 +396,39 @@ export default function ExamSession() {
           <div className="space-y-8">
             {/* Webcam */}
             <div className="aspect-video bg-black rounded-2xl border border-white/10 overflow-hidden relative">
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
-              <div className="absolute top-4 left-4 flex gap-2">
-                 <div className="px-3 py-1 bg-[#00B4D8]/20 text-[#00B4D8] text-[8px] font-black uppercase tracking-widest rounded-full border border-[#00B4D8]/20 flex items-center gap-1.5 backdrop-blur-md">
-                   <Monitor className="w-3 h-3" /> Live Monitor
-                 </div>
-              </div>
+               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
+               <div className="absolute top-4 left-4 flex gap-2">
+                  <div className="px-3 py-1 bg-[#00B4D8]/20 text-[#00B4D8] text-[8px] font-black uppercase tracking-widest rounded-full border border-[#00B4D8]/20 flex items-center gap-1.5 backdrop-blur-md">
+                    <Monitor className="w-3 h-3" /> Live Monitor
+                  </div>
+               </div>
+
+               {/* AI Status Overlay */}
+               <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10">
+                     <div className={`w-2 h-2 rounded-full ${gaze.isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                     <span className="text-[10px] font-bold text-white/70 uppercase tracking-tighter">AI Monitor</span>
+                  </div>
+                  {gaze.isConnected && (
+                    <div className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${gaze.currentZone === 'center' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                      Gaze: {gaze.currentZone}
+                    </div>
+                  )}
+               </div>
+
+               {/* Live AI Debug Panel (Temporary) */}
+               <div className="absolute bottom-2 left-2 right-2 bg-black/80 backdrop-blur-lg rounded-lg border border-white/10 p-2 pointer-events-none">
+                  <div className="flex justify-between items-center mb-1">
+                     <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">AI Raw Data (Debug)</span>
+                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${gaze.isConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {gaze.isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                   </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-white/80">
+                     <div>Zone: <span className="text-indigo-400">{gaze.currentZone}</span></div>
+                     <div>Alerts: <span className="text-red-400">{gaze.violations}</span></div>
+                  </div>
+               </div>
             </div>
 
             {/* Alert Feed */}
@@ -396,7 +442,7 @@ export default function ExamSession() {
                    className={`p-4 rounded-xl border flex items-start gap-3 ${alert.severity === 'high' ? 'bg-red-500/5 border-red-500/20' : 'bg-white/5 border-white/10'}`}
                  >
                    <div className={`mt-1 ${alert.severity === 'high' ? 'text-red-400' : 'text-white/40'}`}>
-                     {alert.type === 'tab_switch' ? <Monitor className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                     {alert.type === 'tab_switch' ? <Monitor className="w-4 h-4" /> : alert.type === 'gaze_away' ? <Eye className="w-4 h-4 text-red-500" /> : <ShieldAlert className="w-4 h-4" />}
                    </div>
                    <div>
                      <div className="text-xs font-bold text-white mb-0.5">{alert.message}</div>

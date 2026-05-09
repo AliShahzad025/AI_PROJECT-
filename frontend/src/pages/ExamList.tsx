@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { PageHeader, GlassCard, GradientButton, StatusBadge } from '../components/UI';
-import { Search, Filter, ClipboardList, Calendar, Clock, User, Check, ArrowRight } from 'lucide-react';
+import { Search, Filter, ClipboardList, Calendar, Clock, User, Check, ArrowRight, X } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, where, updateDoc, doc, arrayUnion } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, updateDoc, doc, arrayUnion, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAppAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,23 +15,42 @@ export default function ExamList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  const [enrollmentRequests, setEnrollmentRequests] = useState<any[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'exams'), (snapshot) => {
       setExams(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    return () => unsub();
-  }, []);
 
-  const enroll = async (examId: string) => {
-    try {
-      await updateDoc(doc(db, 'exams', examId), {
-        enrolledStudents: arrayUnion(user.uid)
+    let unsubRequests: () => void = () => {};
+    if (user?.uid) {
+      unsubRequests = onSnapshot(query(collection(db, 'enrollmentRequests'), where('studentId', '==', user.uid)), (snapshot) => {
+        setEnrollmentRequests(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       });
-      toast.success("Enrolled successfully! Good luck with your exam.");
+    }
+
+    return () => {
+      unsub();
+      unsubRequests();
+    };
+  }, [user]);
+
+  const enroll = async (exam: any) => {
+    try {
+      await addDoc(collection(db, 'enrollmentRequests'), {
+        examId: exam.id,
+        examName: exam.title || exam.name || 'Untitled Exam',
+        studentId: user.uid,
+        studentName: user.name || 'Student',
+        studentEmail: user.email || '',
+        instructorId: exam.instructorId || exam.createdBy || '',
+        status: 'pending',
+        timestamp: serverTimestamp()
+      });
+      toast.success("Enrollment request sent! Waiting for instructor approval.");
     } catch (err) {
-      toast.error("Failed to enroll");
+      toast.error("Failed to send enrollment request");
     }
   };
 
@@ -127,13 +146,33 @@ export default function ExamList() {
                     Enter Exam <ArrowRight className="w-4 h-4" />
                   </GradientButton>
                 ) : (
-                  <GradientButton 
-                    variant="secondary" 
-                    onClick={() => enroll(exam.id)}
-                    className="w-full text-xs font-black uppercase tracking-widest py-3 flex items-center justify-center gap-2 border-[#00B4D8]/30 text-[#00B4D8] hover:bg-[#00B4D8]/10"
-                  >
-                    Enroll Now
-                  </GradientButton>
+                  <div className="w-full">
+                    {enrollmentRequests.some(r => r.examId === exam.id && r.status === 'pending') ? (
+                      <div className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/30">
+                        <Clock className="w-3 h-3" /> Pending Approval
+                      </div>
+                    ) : enrollmentRequests.some(r => r.examId === exam.id && r.status === 'rejected') ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="w-full py-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-400/50">
+                          <X className="w-3 h-3" /> Rejected
+                        </div>
+                        <button 
+                          onClick={() => enroll(exam)}
+                          className="text-[10px] font-black uppercase tracking-widest text-[#00B4D8] hover:underline"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    ) : (
+                      <GradientButton 
+                        variant="secondary" 
+                        onClick={() => enroll(exam)}
+                        className="w-full text-xs font-black uppercase tracking-widest py-3 flex items-center justify-center gap-2 border-[#00B4D8]/30 text-[#00B4D8] hover:bg-[#00B4D8]/10"
+                      >
+                        Enroll Now
+                      </GradientButton>
+                    )}
+                  </div>
                 )}
               </div>
             </GlassCard>

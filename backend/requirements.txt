@@ -1,9 +1,10 @@
 fastapi
 uvicorn
-websockets
-opencv-python-headless
-mediapipe
-firebase-admin
 python-dotenv
-pydantic
-requests
+firebase-admin
+python-multipart
+mediapipe
+opencv-python
+torch
+torchvision
+numpy

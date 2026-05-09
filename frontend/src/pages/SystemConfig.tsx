@@ -4,7 +4,7 @@ import { PageHeader, GlassCard, GradientButton } from '../components/UI';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { Settings, Save, RotateCcw, Shield, HardDrive, Chrome, Laptop } from 'lucide-react';
+import { Settings, Save, RotateCcw, Shield, HardDrive, Laptop } from 'lucide-react';
 
 const DEFAULTS = {
   gazeDeviationThresholdSeconds: 3,
@@ -12,8 +12,7 @@ const DEFAULTS = {
   frameCaptureInterval: 2,
   maxConcurrentStudents: 100,
   evidenceRetentionDays: 90,
-  maxExamDuration: 240,
-  allowedBrowsers: ['Chrome', 'Firefox', 'Edge']
+  maxExamDuration: 240
 };
 
 export default function SystemConfig() {
@@ -63,18 +62,7 @@ export default function SystemConfig() {
     }
   };
 
-  const toggleBrowser = (browser: string) => {
-    const allowed = [...config.allowedBrowsers];
-    if (allowed.includes(browser)) {
-      if (allowed.length === 1) {
-        toast.error("At least one browser must be allowed");
-        return;
-      }
-      setConfig({ ...config, allowedBrowsers: allowed.filter(b => b !== browser) });
-    } else {
-      setConfig({ ...config, allowedBrowsers: [...allowed, browser] });
-    }
-  };
+
 
   if (loading) return null;
 
@@ -136,28 +124,7 @@ export default function SystemConfig() {
             </div>
           </GlassCard>
 
-          {/* Allowed Browsers */}
-          <GlassCard className="p-8">
-             <div className="flex items-center gap-3 mb-8">
-              <Chrome className="w-5 h-5 text-[#00B4D8]" />
-              <h3 className="text-lg font-display font-bold text-white">Allowed Browsers</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {['Chrome', 'Firefox', 'Edge', 'Safari'].map(browser => (
-                <button
-                  key={browser}
-                  onClick={() => toggleBrowser(browser)}
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-all ${config.allowedBrowsers.includes(browser) ? 'bg-[#00B4D8]/10 border-[#00B4D8]/20 text-white' : 'bg-white/5 border-white/5 text-white/30'}`}
-                >
-                  <span className="text-sm font-bold">{browser}</span>
-                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${config.allowedBrowsers.includes(browser) ? 'bg-[#00B4D8] border-[#00B4D8]' : 'border-white/10'}`}>
-                    {config.allowedBrowsers.includes(browser) && <Save className="w-3 h-3 text-white" />}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </GlassCard>
+
         </div>
 
         <div className="space-y-8">
