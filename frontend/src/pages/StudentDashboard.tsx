@@ -58,7 +58,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!user || !exams.length) return;
 
-    const enrolled = exams.filter(e => e.enrolledStudents?.includes(user.uid));
+    const enrolled = exams.filter(e => e.enrolledStudents?.includes(user?.uid));
     const completedExamIds = submissions.map(s => s.examId);
     
     const completed = enrolled.filter(e => e.status === 'completed' || completedExamIds.includes(e.id));

@@ -64,7 +64,7 @@ export default function ExamList() {
 
   const filteredExams = exams.filter(e => {
     const matchesSearch = (e.title || e.name || '').toLowerCase().includes(search.toLowerCase());
-    const isEnrolled = e.enrolledStudents?.includes(user.uid);
+    const isEnrolled = e.enrolledStudents?.includes(user?.uid);
     const hasSubmitted = submissions.some(s => s.examId === e.id);
     
     if (activeTab === 'Enrolled') return matchesSearch && isEnrolled && !hasSubmitted;
@@ -109,7 +109,7 @@ export default function ExamList() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExams.length > 0 ? filteredExams.map(exam => {
-          const isEnrolled = exam.enrolledStudents?.includes(user.uid);
+          const isEnrolled = exam.enrolledStudents?.includes(user?.uid);
           const isJoinable = () => {
             if (!isEnrolled) return false;
             const examDate = new Date(`${exam.date}T${exam.time}`);
