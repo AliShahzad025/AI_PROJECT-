@@ -6,7 +6,7 @@ import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/fires
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldAlert, Clock, ChevronLeft, ChevronRight, 
-  Send, AlertTriangle, Monitor, Eye, Mic, Info 
+  Send, AlertTriangle, Monitor, Eye, Info 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard, GradientButton } from '../components/UI';
@@ -137,7 +137,7 @@ export default function ExamSession() {
 
     const initMonitoring = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
         setCameraReady(true);
@@ -207,34 +207,7 @@ export default function ExamSession() {
     return () => clearInterval(interval);
   }, [cameraReady, sessionId]);
 
-  // 4. Audio Capture (5s)
-  useEffect(() => {
-    if (!cameraReady || !sessionId) return;
-    
-    let mediaRecorder: MediaRecorder;
-    let chunks: Blob[] = [];
 
-    const startRecording = () => {
-      if (!streamRef.current) return;
-      mediaRecorder = new MediaRecorder(streamRef.current);
-      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        chunks = [];
-        // In a real app, send blob to storage or via socket
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-          // socketRef.current.send(blob); // Simplified
-        }
-      };
-      mediaRecorder.start();
-      setTimeout(() => {
-        if (mediaRecorder.state === 'recording') mediaRecorder.stop();
-      }, 3000);
-    };
-
-    const interval = setInterval(startRecording, 5000);
-    return () => clearInterval(interval);
-  }, [cameraReady, sessionId]);
 
   // 5. Lockdown Events
   useEffect(() => {

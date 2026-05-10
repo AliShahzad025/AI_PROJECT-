@@ -121,7 +121,6 @@ export default function ExamReview() {
     total: filteredAlerts.length,
     faces: filteredAlerts.filter(a => a.alertType?.includes('face')).length,
     gaze: filteredAlerts.filter(a => a.alertType?.includes('gaze')).length,
-    audio: filteredAlerts.filter(a => a.alertType?.includes('audio')).length,
     tab: filteredAlerts.filter(a => a.alertType?.includes('tab')).length,
   };
 
@@ -220,11 +219,10 @@ export default function ExamReview() {
             {(() => {
               const summary = getViolationSummary(filteredAlerts);
               return (
-                <div className="grid grid-cols-6 gap-4">
+                <div className="grid grid-cols-5 gap-4">
                   <MiniStat label="Score" value={selectedSession === 'all' ? '--' : `${finalRoster.find(s => s.sessionId === selectedSession)?.score || 0}/${finalRoster.find(s => s.sessionId === selectedSession)?.totalQuestions || 0}`} color="var(--accent-primary)" />
                   <MiniStat label="Faces (1:1)" value={`${summary.faceViolations} (${summary.rawCounts.face})`} />
                   <MiniStat label="Gaze (4:1)" value={`${summary.gazeViolations} (${summary.rawCounts.gaze})`} />
-                  <MiniStat label="Audio (1:1)" value={`${summary.audioViolations} (${summary.rawCounts.audio})`} />
                   <MiniStat label="Tabs (2:1)" value={`${summary.tabViolations} (${summary.rawCounts.tab})`} />
                   <MiniStat label="Total Violations" value={summary.totalViolations} color="var(--danger)" />
                 </div>

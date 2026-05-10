@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth';
 import { submitExam, getExamById, WS_URL } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, ShieldCheck, Send, ShieldAlert, Camera, Shield, Check, Mic, UserCheck, AlertTriangle } from 'lucide-react';
+import { Clock, ShieldCheck, Send, ShieldAlert, Camera, Shield, Check, UserCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassCard, GradientButton } from '../components/UI';
 import { useGazeMonitor } from '../hooks/useGazeMonitor';
@@ -32,7 +32,6 @@ export default function ExamRoom() {
   // Ref for cleanup
   const cleanupRefs = useRef<{
     frameInterval?: NodeJS.Timeout;
-    audioInterval?: NodeJS.Timeout;
     timerInterval?: NodeJS.Timeout;
   }>({});
 
@@ -112,17 +111,8 @@ export default function ExamRoom() {
       }
     }, 2000);
 
-    // Audio check every 5s (Mocked logic for now as full audio processing requires more setup)
-    cleanupRefs.current.audioInterval = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN) {
-        // Send a dummy audio event or actual chunk if implemented
-        socket.send(JSON.stringify({ type: 'audio_ping', timestamp: Date.now() }));
-      }
-    }, 5000);
-
     return () => {
       clearInterval(cleanupRefs.current.frameInterval);
-      clearInterval(cleanupRefs.current.audioInterval);
       socket.close();
     };
   }, [verificationStage, stream, user, id, isSubmitting]);
@@ -152,11 +142,11 @@ export default function ExamRoom() {
   useEffect(() => {
     const initCamera = async () => {
       try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         setStream(mediaStream);
         if (videoRef.current) videoRef.current.srcObject = mediaStream;
       } catch (err) {
-        toast.error("Camera and Microphone access are required to take this exam.");
+        toast.error("Camera access is required to take this exam.");
       }
     };
     initCamera();

@@ -8,7 +8,6 @@ import { Settings, Save, RotateCcw, Shield, HardDrive, Laptop } from 'lucide-rea
 
 const DEFAULTS = {
   gazeDeviationThresholdSeconds: 3,
-  audioAnomalyThreshold: 0.75,
   frameCaptureInterval: 2,
   maxConcurrentStudents: 100,
   evidenceRetentionDays: 90,
@@ -96,18 +95,7 @@ export default function SystemConfig() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <label className="text-xs font-bold text-white/60">Audio Anomaly Sensitivity</label>
-                  <span className="text-[#00B4D8] font-bold">{Math.round(config.audioAnomalyThreshold * 100)}%</span>
-                </div>
-                <input 
-                  type="range" min="0" max="1" step="0.05"
-                  value={config.audioAnomalyThreshold}
-                  onChange={e => setConfig({ ...config, audioAnomalyThreshold: parseFloat(e.target.value) })}
-                  className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-[#00B4D8]"
-                />
-              </div>
+
 
               <div className="space-y-2">
                 <div className="flex justify-between">

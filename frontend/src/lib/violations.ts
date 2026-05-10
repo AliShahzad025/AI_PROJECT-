@@ -43,28 +43,24 @@ export function getViolationSummary(alerts: Alert[]) {
     const gazeAlerts = alerts.filter(a => (a.alertType || a.type || '').includes('gaze'));
     const tabAlerts = alerts.filter(a => (a.alertType || a.type || '').includes('tab'));
     const faceAlerts = alerts.filter(a => (a.alertType || a.type || '').includes('face'));
-    const audioAlerts = alerts.filter(a => (a.alertType || a.type || '').includes('audio'));
     
-    const others = alerts.length - gazeAlerts.length - tabAlerts.length - faceAlerts.length - audioAlerts.length;
+    const others = alerts.length - gazeAlerts.length - tabAlerts.length - faceAlerts.length;
 
     const gazeViolations = Math.floor(gazeAlerts.length / 4);
     const tabViolations = Math.floor(tabAlerts.length / 2);
     const faceViolations = faceAlerts.length;
-    const audioViolations = audioAlerts.length;
     const otherViolations = others;
 
     return {
         gazeViolations,
         tabViolations,
         faceViolations,
-        audioViolations,
         otherViolations,
-        totalViolations: gazeViolations + tabViolations + faceViolations + audioViolations + otherViolations,
+        totalViolations: gazeViolations + tabViolations + faceViolations + otherViolations,
         rawCounts: {
             gaze: gazeAlerts.length,
             tab: tabAlerts.length,
             face: faceAlerts.length,
-            audio: audioAlerts.length,
             others
         }
     };
