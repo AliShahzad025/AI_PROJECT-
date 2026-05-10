@@ -100,91 +100,43 @@ export default function LandingPage() {
           </div>
         </motion.div>
 
-        {/* Hero Image Mockup */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
-          className="w-full max-w-5xl mx-auto mt-20 relative z-10"
+        {/* Simple Features Summary - LLM Style */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="w-full max-w-6xl mx-auto mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-left px-4"
         >
-          <div className="bg-glass rounded-2xl p-2 md:p-4 glow-effect shadow-2xl">
-            <div className="bg-[#0A0A0C] rounded-xl overflow-hidden border border-white/5">
-              {/* Fake UI Header */}
-              <div className="h-12 border-b border-white/5 flex items-center px-4 gap-2 bg-[#111]">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                </div>
-                <div className="ml-4 text-xs font-mono text-white/40">app.proctorai.com/live-session/CS101</div>
-              </div>
-              {/* Fake UI Body */}
-              <div className="h-[400px] md:h-[600px] flex">
-                <div className="w-64 border-r border-white/5 hidden md:block p-4 flex flex-col gap-4">
-                  <div className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Live Exams</div>
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className={`p-3 rounded-lg border ${i === 1 ? 'bg-[#00B4D8]/10 border-[#00B4D8]/20' : 'bg-white/5 border-transparent'} flex items-center gap-3`}>
-                      <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs">
-                        {['CS', 'MA', 'PH'][i-1]}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">Midterm {i}</div>
-                        <div className="text-xs text-white/50">{24 + i * 12} Students</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex-1 p-6 bg-gradient-to-br from-[#0A0A0C] to-[#12121A] relative overflow-hidden">
-                   {/* Abstract visualizing of AI tracking */}
-                   <div className="absolute inset-0 flex items-center justify-center opacity-50">
-                      <div className="w-64 h-64 border border-indigo-500/30 rounded-full flex items-center justify-center">
-                        <div className="w-48 h-48 border border-white/10 rounded-full flex items-center justify-center">
-                          <Eye className="w-12 h-12 text-[#00B4D8] opacity-50" />
-                        </div>
-                      </div>
-                      
-                      {/* Fake tracking lines */}
-                      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                         <path d="M50 50 L20 20 M50 50 L80 30 M50 50 L70 80 M50 50 L30 70" stroke="rgba(0, 180, 216, 0.2)" strokeWidth="0.5" fill="none" />
-                      </svg>
-                   </div>
-                   
-                   {/* Fake alerts overlay */}
-                   <div className="absolute top-6 right-6 flex flex-col gap-3">
-                      <div className="bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-lg flex items-start gap-3 backdrop-blur-md">
-                        <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
-                        <div>
-                          <div className="text-sm font-medium text-red-200">Multiple Faces Detected</div>
-                          <div className="text-xs text-red-400/70">Candidate: J. Doe • 1m ago</div>
-                        </div>
-                      </div>
-                      <div className="bg-yellow-500/10 border border-yellow-500/20 px-4 py-3 rounded-lg flex items-start gap-3 backdrop-blur-md">
-                        <Smartphone className="w-5 h-5 text-yellow-400 mt-0.5" />
-                        <div>
-                          <div className="text-sm font-medium text-yellow-200">Device Detected</div>
-                          <div className="text-xs text-yellow-400/70">Candidate: S. Smith • 3m ago</div>
-                        </div>
-                      </div>
-                   </div>
-                </div>
-              </div>
+          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-[#00B4D8]/30 transition-all">
+            <div className="w-10 h-10 bg-[#00B4D8]/10 rounded-xl flex items-center justify-center mb-4">
+               <ShieldCheck className="w-5 h-5 text-[#00B4D8]" />
             </div>
+            <h3 className="text-xl font-bold mb-2">Academic Integrity</h3>
+            <p className="text-white/40 text-sm leading-relaxed">
+              Maintain the highest standards with intelligent monitoring that ensures every exam is fair and every grade is earned.
+            </p>
+          </div>
+
+          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-[#00B4D8]/30 transition-all">
+            <div className="w-10 h-10 bg-[#00B4D8]/10 rounded-xl flex items-center justify-center mb-4">
+               <BrainCircuit className="w-5 h-5 text-[#00B4D8]" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Smart Observations</h3>
+            <p className="text-white/40 text-sm leading-relaxed">
+              Our system understands natural student behavior, focusing only on genuine security threats while respecting privacy.
+            </p>
+          </div>
+
+          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-[#00B4D8]/30 transition-all">
+            <div className="w-10 h-10 bg-[#00B4D8]/10 rounded-xl flex items-center justify-center mb-4">
+               <CheckCircle2 className="w-5 h-5 text-[#00B4D8]" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Total Control</h3>
+            <p className="text-white/40 text-sm leading-relaxed">
+              From automated grading to detailed audit logs, manage the entire exam lifecycle from a single, intuitive interface.
+            </p>
           </div>
         </motion.div>
-      </section>
-
-      {/* Social Proof */}
-      <section className="py-10 border-y border-white/5 bg-white/[0.02]">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-sm text-white/40 mb-6 font-medium">TRUSTED BY INNOVATIVE INSTITUTIONS GLOBALLY</p>
-          <div className="flex flex-wrap justify-center gap-12 md:gap-24 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-             {/* Mock Institution Logos using Icons and Text */}
-             <div className="flex items-center gap-2 text-xl font-display font-bold"><GraduationCap className="w-6 h-6"/> Stanford Univ.</div>
-             <div className="flex items-center gap-2 text-xl font-display font-bold"><Building2 className="w-6 h-6"/> MIT Tech</div>
-             <div className="flex items-center gap-2 text-xl font-display font-bold text-white"><ShieldCheck className="w-6 h-6"/> EdX Partners</div>
-             <div className="flex items-center gap-2 text-xl font-display font-bold"><GraduationCap className="w-6 h-6"/> Oxford Inst.</div>
-          </div>
-        </div>
       </section>
 
       {/* Features Bento Grid */}

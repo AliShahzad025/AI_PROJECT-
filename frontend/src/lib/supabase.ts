@@ -16,7 +16,7 @@ export const supabase = createClient(supabaseUrl || '', supabaseKey || '');
  * @returns The public URL of the uploaded image
  */
 export async function uploadEvidence(imageData: string | Blob, path: string) {
-  const bucket = 'exam-evidence';
+  const bucket = 'EXAM-EVIDENCE';
   
   let body: any = imageData;
   
