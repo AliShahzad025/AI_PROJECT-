@@ -6,13 +6,15 @@ import { collection, query, where, onSnapshot, doc, updateDoc, getDoc, orderBy }
 import { useParams } from 'react-router-dom';
 import { Users, ShieldAlert, CheckCircle, Download, FileJson, FileSpreadsheet, Clock, AlertTriangle, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { calculateViolationsCount, getViolationSummary } from '../lib/violations';
 
 export default function ExamReview() {
   const { examId } = useParams();
   const [exam, setExam] = useState<any>(null);
-  const [students, setStudents] = useState<any[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string | 'all'>('all');
+  const [selectedSession, setSelectedSession] = useState<string | 'all'>('all');
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,30 +26,79 @@ export default function ExamReview() {
     });
 
     // Fetch Alerts
-    const unsubAlerts = onSnapshot(query(collection(db, 'monitoringAlerts'), where('examId', '==', examId), orderBy('timestamp', 'asc')), (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAlerts(docs);
-      setLoading(false);
-    });
+    const unsubAlerts = onSnapshot(
+      query(collection(db, 'monitoringAlerts'), where('examId', '==', examId)), 
+      (snapshot) => {
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log(`Fetched ${docs.length} alerts for exam ${examId}`);
+        setAlerts(docs);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Alerts subscription error:", error);
+        toast.error("Failed to sync alerts");
+      }
+    );
 
-    // Fetch enrolled students logic - for simplicity extracting from alerts or enrolledStudents list
-    return () => unsubAlerts();
+    // Fetch Sessions
+    const unsubSessions = onSnapshot(
+      query(collection(db, 'examSessions'), where('examId', '==', examId)), 
+      (snapshot) => {
+        setSessions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        console.error("Sessions subscription error:", error);
+      }
+    );
+
+    // Fetch Submissions
+    const unsubSubmissions = onSnapshot(
+      query(collection(db, 'submissions'), where('examId', '==', examId)),
+      (snapshot) => {
+        setSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    );
+
+    return () => {
+      unsubAlerts();
+      unsubSessions();
+      unsubSubmissions();
+    };
   }, [examId]);
 
-  useEffect(() => {
-    if (exam && exam.enrolledStudents) {
-      // In a real app, you'd fetch user profiles for these IDs
-      // Mocking for now based on unique student IDs in alerts + enrolled list
-      const alertStudentIds = [...new Set(alerts.map(a => a.studentId))];
-      const allIds = [...new Set([...(exam.enrolledStudents || []), ...alertStudentIds])];
-      setStudents(allIds.map(id => ({
-        uid: id,
-        name: alerts.find(a => a.studentId === id)?.studentName || `Student ${id.slice(-4)}`,
-        alertCount: alerts.filter(a => a.studentId === id).length,
-        reviewed: alerts.filter(a => a.studentId === id && !a.reviewed).length === 0
-      })));
-    }
-  }, [exam, alerts]);
+  const studentSessions = sessions.map(session => {
+    // Match by sessionId or session_id for compatibility
+    const sessionAlerts = alerts.filter(a => (a.sessionId === session.id) || (a.session_id === session.id));
+    // Match submission by sessionId
+    const submission = submissions.find(s => s.sessionId === session.id);
+    
+    return {
+      sessionId: session.id,
+      studentId: session.studentId,
+      studentName: session.studentName,
+      startTime: session.startTime?.toDate?.() || new Date(session.startTime),
+      violationCount: calculateViolationsCount(sessionAlerts),
+      alertCount: sessionAlerts.length,
+      score: submission?.score,
+      totalQuestions: submission?.totalQuestions,
+      reviewed: sessionAlerts.length > 0 && sessionAlerts.every(a => a.reviewed)
+    };
+  }).sort((a, b) => b.startTime - a.startTime);
+
+  // Group by student to count attempts
+  const studentAttemptCount: Record<string, number> = {};
+  const roster = studentSessions.map(s => {
+    studentAttemptCount[s.studentId] = (studentAttemptCount[s.studentId] || 0) + 1;
+    return { ...s, attemptNumber: studentAttemptCount[s.studentId] };
+  }).reverse(); // Reverse so earlier attempts get lower numbers if sorted by time desc originally, wait.
+  
+  // Better way: sort by time ASC, then count.
+  const rosterAsc = [...studentSessions].sort((a, b) => a.startTime - b.startTime);
+  const counts: Record<string, number> = {};
+  const finalRoster = rosterAsc.map(s => {
+    counts[s.studentId] = (counts[s.studentId] || 0) + 1;
+    return { ...s, attemptNumber: counts[s.studentId] };
+  }).sort((a, b) => b.startTime - a.startTime);
 
   const markReviewed = async (alertId: string) => {
     try {
@@ -62,16 +113,16 @@ export default function ExamReview() {
     }
   };
 
-  const filteredAlerts = selectedStudent === 'all' 
+  const filteredAlerts = selectedSession === 'all' 
     ? alerts 
-    : alerts.filter(a => a.studentId === selectedStudent);
+    : alerts.filter(a => a.sessionId === selectedSession);
 
   const stats = {
     total: filteredAlerts.length,
-    faces: filteredAlerts.filter(a => a.alertType === 'multiple_faces').length,
-    gaze: filteredAlerts.filter(a => a.alertType === 'gaze_deviation').length,
-    audio: filteredAlerts.filter(a => a.alertType === 'audio_anomaly').length,
-    tab: filteredAlerts.filter(a => a.alertType === 'tab_switch').length,
+    faces: filteredAlerts.filter(a => a.alertType?.includes('face')).length,
+    gaze: filteredAlerts.filter(a => a.alertType?.includes('gaze')).length,
+    audio: filteredAlerts.filter(a => a.alertType?.includes('audio')).length,
+    tab: filteredAlerts.filter(a => a.alertType?.includes('tab')).length,
   };
 
   const downloadReport = () => {
@@ -111,35 +162,41 @@ export default function ExamReview() {
 
       <div className="flex gap-8 h-[calc(100vh-240px)]">
         {/* Left Panel - Student Roster */}
-        <div className="w-[280px] flex flex-col gap-4 overflow-y-auto">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white/40 px-2">Students ({students.length})</h3>
+        <div className="w-[300px] flex flex-col gap-4 overflow-y-auto pr-2">
+          <h3 className="text-xs font-black uppercase tracking-widest text-white/40 px-2">Exam Attempts ({finalRoster.length})</h3>
           <button 
-            onClick={() => setSelectedStudent('all')}
-            className={`p-4 rounded-2xl border text-left transition-all ${selectedStudent === 'all' ? 'bg-[#00B4D8]/10 border-[#00B4D8]/30' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+            onClick={() => setSelectedSession('all')}
+            className={`p-4 rounded-2xl border text-left transition-all ${selectedSession === 'all' ? 'bg-[#00B4D8]/10 border-[#00B4D8]/30' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
           >
-            <div className="text-sm font-bold text-white">All Students</div>
+            <div className="text-sm font-bold text-white">All Activity</div>
             <div className="text-[10px] text-white/30 uppercase font-bold tracking-widest">{alerts.length} Total Alerts</div>
           </button>
           
           <div className="space-y-2">
-            {students.map(student => (
+            {finalRoster.map(session => (
               <button 
-                key={student.uid}
-                onClick={() => setSelectedStudent(student.uid)}
-                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${selectedStudent === student.uid ? 'bg-[#00B4D8]/10 border-[#00B4D8]/30' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                key={session.sessionId}
+                onClick={() => setSelectedSession(session.sessionId)}
+                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${selectedSession === session.sessionId ? 'bg-[#00B4D8]/10 border-[#00B4D8]/30' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
               >
                 <div className="flex items-center gap-3">
                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-white/40">
-                    {student.name.charAt(0)}
+                    {session.studentName.charAt(0)}
                    </div>
                    <div>
-                     <div className="text-sm font-bold text-white truncate max-w-[120px]">{student.name}</div>
-                     {student.reviewed && <CheckCircle className="w-3 h-3 text-green-400 mt-0.5" />}
+                     <div className="text-sm font-bold text-white truncate max-w-[140px]">{session.studentName}</div>
+                     <div className="text-[9px] text-white/30 uppercase font-bold tracking-tighter">Attempt {session.attemptNumber} • {session.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                     {session.reviewed && <CheckCircle className="w-3 h-3 text-green-400 mt-0.5" />}
                    </div>
                 </div>
-                {student.alertCount > 0 && (
+                {session.violationCount > 0 && (
                   <span className="bg-red-500/20 text-red-400 text-[10px] font-black px-1.5 py-0.5 rounded-md border border-red-500/20">
-                    {student.alertCount}
+                    {session.violationCount}V
+                  </span>
+                )}
+                {session.score !== undefined && (
+                  <span className="ml-2 bg-[#00B4D8]/20 text-[#00B4D8] text-[10px] font-black px-1.5 py-0.5 rounded-md border border-[#00B4D8]/20">
+                    {session.score}/{session.totalQuestions}
                   </span>
                 )}
               </button>
@@ -152,20 +209,27 @@ export default function ExamReview() {
           <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-display font-bold text-white">
-                {selectedStudent === 'all' ? 'Aggregate Overview' : students.find(s => s.uid === selectedStudent)?.name}
+                {selectedSession === 'all' ? 'Aggregate Overview' : `${finalRoster.find(s => s.sessionId === selectedSession)?.studentName} (Attempt ${finalRoster.find(s => s.sessionId === selectedSession)?.attemptNumber})`}
               </h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Raw Database Feed: {alerts.length} alerts</span>
                 <StatusBadge status={`${stats.total} Alerts`} variant="danger" />
               </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-4">
-              <MiniStat label="Faces" value={stats.faces} />
-              <MiniStat label="Gaze" value={stats.gaze} />
-              <MiniStat label="Audio" value={stats.audio} />
-              <MiniStat label="Tabs" value={stats.tab} />
-              <MiniStat label="Trust" value={Math.max(0, 100 - stats.total * 5) + '%'} color="#2ECC71" />
-            </div>
+            {(() => {
+              const summary = getViolationSummary(filteredAlerts);
+              return (
+                <div className="grid grid-cols-6 gap-4">
+                  <MiniStat label="Score" value={selectedSession === 'all' ? '--' : `${finalRoster.find(s => s.sessionId === selectedSession)?.score || 0}/${finalRoster.find(s => s.sessionId === selectedSession)?.totalQuestions || 0}`} color="var(--accent-primary)" />
+                  <MiniStat label="Faces (1:1)" value={`${summary.faceViolations} (${summary.rawCounts.face})`} />
+                  <MiniStat label="Gaze (4:1)" value={`${summary.gazeViolations} (${summary.rawCounts.gaze})`} />
+                  <MiniStat label="Audio (1:1)" value={`${summary.audioViolations} (${summary.rawCounts.audio})`} />
+                  <MiniStat label="Tabs (2:1)" value={`${summary.tabViolations} (${summary.rawCounts.tab})`} />
+                  <MiniStat label="Total Violations" value={summary.totalViolations} color="var(--danger)" />
+                </div>
+              );
+            })()}
           </GlassCard>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
@@ -242,7 +306,11 @@ export default function ExamReview() {
               </div>
               <div className="flex items-center gap-3">
                 <Users className="w-4 h-4 text-white/20" />
-                <span className="text-sm text-white/60">{students.length} Total Students</span>
+                <span className="text-sm text-white/60">{[...new Set(finalRoster.map(r => r.studentId))].length} Total Students</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Clock className="w-4 h-4 text-white/20" />
+                <span className="text-sm text-white/60">{finalRoster.length} Total Attempts</span>
               </div>
               <div className="flex items-center gap-3">
                 <AlertTriangle className="w-4 h-4 text-white/20" />

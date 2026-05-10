@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { calculateViolationsCount } from '../lib/violations';
 
 export default function InstructorDashboard() {
   const { user } = useAppAuth();
@@ -19,6 +20,7 @@ export default function InstructorDashboard() {
 
   const [activeExams, setActiveExams] = useState<any[]>([]);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -29,10 +31,10 @@ export default function InstructorDashboard() {
       setStats(prev => ({
         ...prev,
         totalExams: docs.length,
-        activeExams: docs.filter(e => e.status === 'active').length,
+        activeExams: docs.filter(e => e.status?.toLowerCase() === 'active').length,
         totalStudents: docs.reduce((acc, e) => acc + (e.enrolledStudents?.length || 0), 0)
       }));
-      setActiveExams(docs.filter(e => e.status === 'active'));
+      setActiveExams(docs.filter(e => e.status?.toLowerCase() === 'active'));
     });
 
     // Unreviewed Alerts
@@ -40,14 +42,20 @@ export default function InstructorDashboard() {
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setStats(prev => ({
         ...prev,
-        unreviewedAlerts: docs.filter(a => !a.reviewed).length
+        unreviewedAlerts: calculateViolationsCount(docs.filter(a => !a.reviewed))
       }));
       setRecentAlerts(docs.sort((a, b) => b.timestamp?.toMillis() - a.timestamp?.toMillis()).slice(0, 8));
+    });
+
+    // Recent Submissions
+    const unsubSubmissions = onSnapshot(query(collection(db, 'submissions'), orderBy('timestamp', 'desc'), limit(10)), (snapshot) => {
+      setRecentSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
     return () => {
       unsubExams();
       unsubAlerts();
+      unsubSubmissions();
     };
   }, [user]);
 
@@ -63,7 +71,7 @@ export default function InstructorDashboard() {
         <StatCard title="Total Exams" value={stats.totalExams} icon={<FileText />} color="var(--accent-primary)" />
         <StatCard title="Active Exams" value={stats.activeExams} icon={<Activity />} color="var(--success)" />
         <StatCard title="Enrolled Students" value={stats.totalStudents} icon={<Users />} color="var(--info)" />
-        <StatCard title="Unreviewed Alerts" value={stats.unreviewedAlerts} icon={<ShieldAlert />} color="var(--danger)" />
+        <StatCard title="Pending Violations" value={stats.unreviewedAlerts} icon={<ShieldAlert />} color="var(--danger)" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -142,6 +150,62 @@ export default function InstructorDashboard() {
           </div>
         </GlassCard>
       </div>
+      {/* Recent Submissions */}
+      <GlassCard className="mt-8 p-0 overflow-hidden">
+        <div className="p-6 border-b border-white/5">
+          <h3 className="font-display font-bold text-lg text-white">Recent Exam Submissions</h3>
+        </div>
+        <div className="p-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black uppercase tracking-widest text-white/20 border-b border-white/5">
+                  <th className="pb-4">Student</th>
+                  <th className="pb-4">Exam</th>
+                  <th className="pb-4">Score</th>
+                  <th className="pb-4">Violations</th>
+                  <th className="pb-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {recentSubmissions.length > 0 ? recentSubmissions.map((sub: any) => (
+                  <tr key={sub.id} className="group">
+                    <td className="py-4">
+                      <div className="text-sm font-bold text-white group-hover:text-[#00B4D8] transition-colors">{sub.studentName}</div>
+                      <div className="text-[10px] text-white/30 uppercase tracking-tighter">{sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString() : 'N/A'}</div>
+                    </td>
+                    <td className="py-4 text-sm text-white/60">{sub.examId}</td>
+                    <td className="py-4">
+                      <span className="text-sm font-black text-white">{sub.score ?? '--'}</span>
+                      <span className="text-[10px] text-white/20 ml-1">/{sub.totalQuestions ?? '?'}</span>
+                    </td>
+                    <td className="py-4">
+                      {(() => {
+                        const vCount = calculateViolationsCount(sub.incidents || []);
+                        return (
+                          <StatusBadge 
+                            status={vCount > 0 ? `${vCount} Violations` : 'Clean'} 
+                            variant={vCount > 0 ? 'danger' : 'success'} 
+                          />
+                        );
+                      })()}
+                    </td>
+                    <td className="py-4 text-right">
+                      <GradientButton variant="secondary" className="p-2" onClick={() => navigate(`/instructor/exams/${sub.examId}/review`)}>
+                        Review
+                      </GradientButton>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-white/20 text-xs italic">No submissions yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </GlassCard>
     </Layout>
   );
 }

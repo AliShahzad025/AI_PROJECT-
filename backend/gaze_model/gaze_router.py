@@ -14,6 +14,40 @@ inference_engine = GazeInference(MODEL_PATH)
 class GazeRequest(BaseModel):
     frame: str
     session_id: str
+    student_id: str
+    student_name: str
+    exam_id: str
+    instructor_id: str
+
+class TabSwitchRequest(BaseModel):
+    session_id: str
+    exam_id: str
+    student_id: str
+    student_name: str
+    instructor_id: str
+
+@router.post("/tab-switch")
+async def log_tab_switch(request: TabSwitchRequest):
+    try:
+        db = firestore.client()
+        doc_data = {
+            "sessionId": request.session_id,
+            "examId": request.exam_id,
+            "studentId": request.student_id,
+            "studentName": request.student_name,
+            "instructorId": request.instructor_id,
+            "alertType": "tab_switch",
+            "message": "Tab Switch Detected",
+            "description": f"Student {request.student_name} switched browser tabs or windows.",
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "severity": "high",
+            "reviewed": False
+        }
+        db.collection("monitoringAlerts").add(doc_data)
+        return {"status": "success", "message": "Tab switch logged"}
+    except Exception as e:
+        print(f"Error logging tab switch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/gaze")
 async def process_gaze(request: GazeRequest):
@@ -21,24 +55,30 @@ async def process_gaze(request: GazeRequest):
         # Perform Inference
         result = inference_engine.process_frame(request.frame)
         
-        # If suspicious, log to Firestore (Protected by try-except to prevent 500 errors)
+        # If suspicious, log to Firestore
         if result.get("suspicious", False):
             try:
                 db = firestore.client()
                 doc_data = {
-                    "session_id": request.session_id,
-                    "type": "gaze_away",
+                    "sessionId": request.session_id,
+                    "studentId": request.student_id,
+                    "studentName": request.student_name,
+                    "examId": request.exam_id,
+                    "instructorId": request.instructor_id,
+                    "alertType": "gaze_away",
+                    "message": f"Suspicious gaze: {result['gaze']}",
+                    "description": f"AI flagged suspicious gaze: {result['gaze']} (Yaw: {result['yaw']:.2f}, Pitch: {result['pitch']:.2f})",
                     "timestamp": firestore.SERVER_TIMESTAMP,
+                    "severity": "high",
+                    "reviewed": False,
                     "gaze_direction": result["gaze"],
                     "yaw": result["yaw"],
-                    "pitch": result["pitch"],
-                    "details": f"AI flagged suspicious gaze: {result['gaze']}"
+                    "pitch": result["pitch"]
                 }
-                db.collection("proctoring_events").add(doc_data)
-                print(f"DEBUG: Successfully logged violation for {request.session_id}")
+                db.collection("monitoringAlerts").add(doc_data)
+                print(f"DEBUG: Successfully logged gaze violation for {request.student_id}")
             except Exception as db_err:
-                # Log the error but DO NOT crash the request
-                print(f"DATABASE ERROR: Failed to log violation: {db_err}")
+                print(f"DATABASE ERROR: Failed to log gaze violation: {db_err}")
             
         return result
         

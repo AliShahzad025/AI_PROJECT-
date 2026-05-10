@@ -5,7 +5,7 @@ import { FileText, Plus, Eye, Edit, Trash2, Calendar, Clock, Users, ShieldAlert 
 import { useNavigate } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 export default function ManageExams() {
@@ -33,6 +33,18 @@ export default function ManageExams() {
       toast.success("Exam deleted successfully");
     } catch (err) {
       toast.error("Failed to delete exam");
+    }
+  };
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    try {
+      await updateDoc(doc(db, 'exams', id), { 
+        status: newStatus.toLowerCase(),
+        updatedAt: serverTimestamp()
+      });
+      toast.success(`Exam marked as ${newStatus}`);
+    } catch (err) {
+      toast.error("Failed to update status");
     }
   };
 
@@ -98,13 +110,20 @@ export default function ManageExams() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <StatusBadge 
-                      status={exam.status} 
-                      variant={
-                        exam.status === 'active' ? 'danger' : 
-                        exam.status === 'completed' ? 'success' : 'info'
-                      } 
-                    />
+                    <select 
+                      value={exam.status}
+                      onChange={(e) => updateStatus(exam.id, e.target.value)}
+                      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border outline-none bg-transparent transition-all ${
+                        exam.status === 'active' ? 'border-red-500/20 text-red-400 bg-red-500/5' : 
+                        exam.status === 'completed' ? 'border-green-500/20 text-green-400 bg-green-500/5' : 
+                        'border-[#00B4D8]/20 text-[#00B4D8] bg-[#00B4D8]/5'
+                      }`}
+                    >
+                      <option value="scheduled" className="bg-[#0D1117]">Scheduled</option>
+                      <option value="active" className="bg-[#0D1117]">Active</option>
+                      <option value="completed" className="bg-[#0D1117]">Completed</option>
+                      <option value="cancelled" className="bg-[#0D1117]">Cancelled</option>
+                    </select>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-xs text-white/60">

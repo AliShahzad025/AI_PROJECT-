@@ -11,6 +11,9 @@ import {
 import { toast } from 'sonner';
 import { GlassCard, GradientButton } from '../components/UI';
 import { useGazeMonitor } from '../hooks/useGazeMonitor';
+import { calculateViolationsCount } from '../lib/violations';
+import { logTabSwitch } from '../lib/api';
+import { uploadEvidence } from '../lib/supabase';
 
 const WS_URL = "ws://localhost:8000/ws";
 
@@ -40,20 +43,55 @@ export default function ExamSession() {
   const streamRef = useRef<MediaStream | null>(null);
 
   // Gaze Monitoring Hook (Verified REST API)
-  const gaze = useGazeMonitor(sessionId || '', videoRef, canvasRef, !!sessionId && !isSubmitting);
+  const gaze = useGazeMonitor(
+    sessionId || '', 
+    user.uid, 
+    user.name, 
+    examId!, 
+    exam?.instructorId || exam?.createdBy || '',
+    videoRef, 
+    canvasRef, 
+    !!sessionId && !isSubmitting
+  );
 
   // Sync AI violations with UI Alert Feed
   useEffect(() => {
     if (gaze.violations > 0 && gaze.currentZone !== 'center') {
-      const newAlert = {
-        type: 'gaze_away',
-        message: `Looked ${gaze.currentZone.toUpperCase()} for too long`,
-        severity: 'high',
-        time: new Date().toLocaleTimeString(),
-        details: `Gaze: ${gaze.currentZone}`
+      const captureAndUpload = async () => {
+        let evidenceUrl = '';
+        
+        // Capture current frame for evidence
+        if (videoRef.current && canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) {
+            canvasRef.current.width = 640; // Higher res for evidence
+            canvasRef.current.height = 480;
+            ctx.drawImage(videoRef.current, 0, 0, 640, 480);
+            const frame = canvasRef.current.toDataURL('image/jpeg', 0.7);
+            
+            try {
+              const path = `violations/${examId}/${user.uid}/${Date.now()}.jpg`;
+              evidenceUrl = await uploadEvidence(frame, path);
+            } catch (err) {
+              console.error("Evidence upload failed:", err);
+            }
+          }
+        }
+
+        const newAlert = {
+          type: 'gaze_away',
+          message: `Looked ${gaze.currentZone.toUpperCase()} for too long`,
+          severity: 'high',
+          time: new Date().toLocaleTimeString(),
+          details: `Gaze: ${gaze.currentZone}`,
+          evidenceImageURL: evidenceUrl
+        };
+        
+        setAlerts(prev => [newAlert, ...prev].slice(0, 5));
+        setLastAlert(newAlert);
       };
-      setAlerts(prev => [newAlert, ...prev].slice(0, 5));
-      setLastAlert(newAlert);
+
+      captureAndUpload();
     }
   }, [gaze.violations]);
 
@@ -105,13 +143,34 @@ export default function ExamSession() {
         setCameraReady(true);
 
         // WebSocket
-        const socket = new WebSocket(`${WS_URL}/monitor/${sessionId}`);
+        const socket = new WebSocket(`${WS_URL}/monitor/${examId}/${user.uid}/${sessionId}`);
         socketRef.current = socket;
 
-        socket.onmessage = (e) => {
+        socket.onmessage = async (e) => {
           const data = JSON.parse(e.data);
           if (data.type === 'alert') {
-            const newAlert = { ...data, time: new Date().toLocaleTimeString() };
+            let evidenceUrl = '';
+            
+            // Capture frame for server-side alerts too
+            if (videoRef.current && canvasRef.current) {
+              const ctx = canvasRef.current.getContext('2d');
+              if (ctx) {
+                canvasRef.current.width = 640;
+                canvasRef.current.height = 480;
+                ctx.drawImage(videoRef.current, 0, 0, 640, 480);
+                const frame = canvasRef.current.toDataURL('image/jpeg', 0.7);
+                try {
+                  const path = `violations/${examId}/${user.uid}/server_${Date.now()}.jpg`;
+                  evidenceUrl = await uploadEvidence(frame, path);
+                } catch (err) {}
+              }
+            }
+
+            const newAlert = { 
+              ...data, 
+              time: new Date().toLocaleTimeString(),
+              evidenceImageURL: evidenceUrl 
+            };
             setAlerts(prev => [newAlert, ...prev].slice(0, 3));
             setLastAlert(newAlert);
             toast.error(data.message || "Suspicious activity detected", { icon: <ShieldAlert /> });
@@ -183,6 +242,11 @@ export default function ExamSession() {
       if (document.hidden && sessionId) {
         setAlerts(prev => [{ type: 'tab_switch', message: 'Tab switched', severity: 'high', time: new Date().toLocaleTimeString() }, ...prev]);
         toast.error("Security Alert: Tab switching is prohibited!");
+        
+        // Log to backend in real-time
+        logTabSwitch(sessionId, examId!, user.uid, user.name, exam?.instructorId || exam?.createdBy || '').catch(err => {
+          console.error("Failed to log tab switch to backend:", err);
+        });
       }
     };
 
@@ -222,16 +286,31 @@ export default function ExamSession() {
     
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'submissions'), {
-        examId,
-        studentId: user.uid,
-        studentName: user.name,
-        answers,
-        sessionId,
-        timestamp: serverTimestamp(),
-        incidents: alerts
+      const response = await fetch('http://localhost:8000/api/exams/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examId,
+          studentId: user.uid,
+          studentName: user.name,
+          studentEmail: user.email || '',
+          sessionId,
+          answers,
+          incidents: alerts,
+          trustScore: Math.max(0, 100 - (calculateViolationsCount(alerts) * 10)) // 10 points per violation
+        })
       });
-      navigate('/student/completed', { state: { examId, alertCount: alerts.length } });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || "Submission failed");
+
+      navigate('/student/completed', { 
+        state: { 
+          examId, 
+          violationCount: calculateViolationsCount(alerts),
+          score: result.score 
+        } 
+      });
     } catch (err) {
       toast.error("Failed to submit exam");
       setIsSubmitting(false);
@@ -290,21 +369,7 @@ export default function ExamSession() {
               </div>
             </div>
 
-            {/* Alert Banner */}
-            <AnimatePresence>
-              {lastAlert && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3"
-                >
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                  <p className="text-xs font-bold text-red-400">⚠ Suspicious activity detected. This exam is being monitored.</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
+            {/* Question Area */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentQ}
@@ -426,7 +491,6 @@ export default function ExamSession() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-white/80">
                      <div>Zone: <span className="text-indigo-400">{gaze.currentZone}</span></div>
-                     <div>Alerts: <span className="text-red-400">{gaze.violations}</span></div>
                   </div>
                </div>
             </div>

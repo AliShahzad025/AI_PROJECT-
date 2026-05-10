@@ -25,6 +25,7 @@ import ExamList from './pages/ExamList';
 import ExamSession from './pages/ExamSession';
 import MyViolations from './pages/MyViolations';
 import ExamCompleted from './pages/ExamCompleted';
+import ExamResults from './pages/ExamResults';
 import StudentProfile from './pages/StudentProfile';
 
 // Fallbacks
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/exams" element={<ExamList />} />
           <Route path="/student/exams/:examId/session" element={<ExamSession />} />
+          <Route path="/student/exams/:id/results" element={<ExamResults />} />
           <Route path="/student/violations" element={<MyViolations />} />
           <Route path="/student/completed" element={<ExamCompleted />} />
           <Route path="/student/profile" element={<StudentProfile />} />

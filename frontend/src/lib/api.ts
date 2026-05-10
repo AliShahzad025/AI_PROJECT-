@@ -199,9 +199,29 @@ export const subscribeToUsers = (callback: (users: any[]) => void) => {
 };
 
 
-export const processGaze = async (frame: string, sessionId: string) => {
+export const processGaze = async (frame: string, sessionId: string, studentId: string, studentName: string, examId: string, instructorId: string) => {
   return await fetchAPI("/proctoring/gaze", {
     method: "POST",
-    body: JSON.stringify({ frame, session_id: sessionId })
+    body: JSON.stringify({ 
+      frame, 
+      session_id: sessionId, 
+      student_id: studentId, 
+      student_name: studentName, 
+      exam_id: examId,
+      instructor_id: instructorId
+    })
+  });
+};
+
+export const logTabSwitch = async (sessionId: string, examId: string, studentId: string, studentName: string, instructorId: string) => {
+  return await fetchAPI("/proctoring/tab-switch", {
+    method: "POST",
+    body: JSON.stringify({ 
+      session_id: sessionId, 
+      exam_id: examId, 
+      student_id: studentId, 
+      student_name: studentName,
+      instructor_id: instructorId
+    })
   });
 };

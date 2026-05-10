@@ -8,7 +8,7 @@ import { motion } from 'motion/react';
 export default function ExamCompleted() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { examId, alertCount } = location.state || {};
+  const { examId, violationCount, score } = location.state || {};
 
   return (
     <div className="min-h-screen bg-[#0D1117] flex items-center justify-center p-6">
@@ -36,9 +36,15 @@ export default function ExamCompleted() {
               <StatusBadge status="Under Review" variant="accent" />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Security Alerts</span>
-              <span className={`text-xs font-bold ${alertCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {alertCount || 0} incidents recorded
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Security Violations</span>
+              <span className={`text-xs font-bold ${violationCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {violationCount || 0} violations recorded
+              </span>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-white/5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Total Score</span>
+              <span className="text-sm font-black text-white">
+                {score !== undefined ? `${score} Points` : 'Grading...'}
               </span>
             </div>
           </div>

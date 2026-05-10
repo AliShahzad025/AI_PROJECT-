@@ -16,6 +16,7 @@ export default function ExamList() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const [enrollmentRequests, setEnrollmentRequests] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'exams'), (snapshot) => {
@@ -24,15 +25,22 @@ export default function ExamList() {
     });
 
     let unsubRequests: () => void = () => {};
+    let unsubSubmissions: () => void = () => {};
+    
     if (user?.uid) {
       unsubRequests = onSnapshot(query(collection(db, 'enrollmentRequests'), where('studentId', '==', user.uid)), (snapshot) => {
         setEnrollmentRequests(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+
+      unsubSubmissions = onSnapshot(query(collection(db, 'submissions'), where('studentId', '==', user.uid)), (snapshot) => {
+        setSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       });
     }
 
     return () => {
       unsub();
       unsubRequests();
+      unsubSubmissions();
     };
   }, [user]);
 
@@ -57,10 +65,11 @@ export default function ExamList() {
   const filteredExams = exams.filter(e => {
     const matchesSearch = (e.title || e.name || '').toLowerCase().includes(search.toLowerCase());
     const isEnrolled = e.enrolledStudents?.includes(user.uid);
+    const hasSubmitted = submissions.some(s => s.examId === e.id);
     
-    if (activeTab === 'Enrolled') return matchesSearch && isEnrolled;
+    if (activeTab === 'Enrolled') return matchesSearch && isEnrolled && !hasSubmitted;
     if (activeTab === 'Available') return matchesSearch && !isEnrolled && e.status === 'scheduled';
-    if (activeTab === 'Completed') return matchesSearch && e.status === 'completed' && isEnrolled;
+    if (activeTab === 'Completed') return matchesSearch && (e.status === 'completed' || hasSubmitted) && isEnrolled;
     return matchesSearch;
   });
 
@@ -135,8 +144,14 @@ export default function ExamList() {
               </div>
 
               <div className="pt-6 border-t border-white/5">
-                {exam.status === 'completed' ? (
-                  <GradientButton variant="secondary" className="w-full text-xs font-black uppercase tracking-widest py-3">View My Results</GradientButton>
+                {(exam.status === 'completed' || submissions.some(s => s.examId === exam.id)) ? (
+                  <GradientButton 
+                    variant="secondary" 
+                    onClick={() => navigate(`/student/exams/${exam.id}/results`)}
+                    className="w-full text-xs font-black uppercase tracking-widest py-3"
+                  >
+                    View My Performance
+                  </GradientButton>
                 ) : isEnrolled ? (
                   <GradientButton 
                     disabled={!isJoinable()}

@@ -11,6 +11,10 @@ interface GazeResult {
 
 export const useGazeMonitor = (
   sessionId: string,
+  studentId: string,
+  studentName: string,
+  examId: string,
+  instructorId: string,
   videoRef: React.RefObject<HTMLVideoElement>,
   canvasRef: React.RefObject<HTMLCanvasElement>,
   isActive: boolean
@@ -21,6 +25,7 @@ export const useGazeMonitor = (
   const [showWarning, setShowWarning] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [rawAlerts, setRawAlerts] = useState(0);
 
   const checkGaze = async () => {
     if (!videoRef.current || !canvasRef.current || !isActive) return;
@@ -38,29 +43,32 @@ export const useGazeMonitor = (
     const frame = canvas.toDataURL('image/jpeg', 0.8);
 
     try {
-      const result: GazeResult = await processGaze(frame, sessionId);
+      const result: GazeResult = await processGaze(frame, sessionId, studentId, studentName, examId, instructorId);
       console.log(`[GazeMonitor] Response:`, result);
       setIsConnected(true);
       setCurrentZone(result.gaze);
 
       if (result.suspicious) {
-        setViolations(v => {
-          const next = v + 1;
+        setRawAlerts(r => {
+          const nextRaw = r + 1;
+          const nextViolations = Math.floor(nextRaw / 4);
+          
+          setViolations(nextViolations);
           setShowWarning(true);
           
-          if (next >= 5) {
+          if (nextViolations >= 5) {
             setShowModal(true);
           } else {
             const desc = result.gaze === 'multiple_faces' 
               ? "Multiple people detected in frame!" 
-              : `You have been looking ${result.gaze} for too long.`;
+              : `Alert ${nextRaw}/4: Looking ${result.gaze} for too long.`;
               
-            toast.error("Suspicious Activity Logged", {
+            toast.error(nextRaw % 4 === 0 ? "Violation Logged!" : "Suspicious Activity Detected", {
               description: desc,
               duration: 4000
             });
           }
-          return next;
+          return nextRaw;
         });
       } else {
         setShowWarning(false);

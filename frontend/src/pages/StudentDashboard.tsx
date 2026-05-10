@@ -6,6 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAppAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { calculateViolationsCount } from '../lib/violations';
 
 export default function StudentDashboard() {
   const { user } = useAppAuth();
@@ -14,11 +15,15 @@ export default function StudentDashboard() {
     enrolledExams: 0,
     completedExams: 0,
     upcomingToday: 0,
-    violations: 0
+    violations: 0,
+    alerts: 0
   });
 
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+
+  const [exams, setExams] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -26,26 +31,21 @@ export default function StudentDashboard() {
     // Fetch Exams for stats and upcoming list
     const unsubExams = onSnapshot(collection(db, 'exams'), (snapshot) => {
       const allExams = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const enrolled = allExams.filter(e => e.enrolledStudents?.includes(user.uid));
-      
-      setStats(prev => ({
-        ...prev,
-        enrolledExams: enrolled.length,
-        completedExams: enrolled.filter(e => e.status === 'completed').length,
-        upcomingToday: enrolled.filter(e => e.date === new Date().toISOString().split('T')[0]).length
-      }));
-
-      setUpcomingExams(enrolled.filter(e => e.status !== 'completed').slice(0, 4));
+      setExams(allExams);
     });
 
     // Fetch Violations
     const unsubAlerts = onSnapshot(query(collection(db, 'monitoringAlerts'), where('studentId', '==', user.uid)), (snapshot) => {
-      setStats(prev => ({ ...prev, violations: snapshot.size }));
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const count = calculateViolationsCount(docs);
+      setStats(prev => ({ ...prev, violations: count, alerts: docs.length }));
     });
 
     // Fetch Recent Activity (submissions)
     const unsubSub = onSnapshot(query(collection(db, 'submissions'), where('studentId', '==', user.uid), orderBy('timestamp', 'desc')), (snapshot) => {
-      setRecentActivity(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 5));
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setSubmissions(docs);
+      setRecentActivity(docs.slice(0, 5));
     });
 
     return () => {
@@ -54,6 +54,25 @@ export default function StudentDashboard() {
       unsubSub();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !exams.length) return;
+
+    const enrolled = exams.filter(e => e.enrolledStudents?.includes(user.uid));
+    const completedExamIds = submissions.map(s => s.examId);
+    
+    const completed = enrolled.filter(e => e.status === 'completed' || completedExamIds.includes(e.id));
+    const upcoming = enrolled.filter(e => !completedExamIds.includes(e.id) && e.status !== 'completed');
+
+    setStats(prev => ({
+      ...prev,
+      enrolledExams: enrolled.length,
+      completedExams: completed.length,
+      upcomingToday: upcoming.filter(e => e.date === new Date().toISOString().split('T')[0]).length
+    }));
+
+    setUpcomingExams(upcoming.slice(0, 4));
+  }, [user, exams, submissions]);
 
   return (
     <Layout role="student">
@@ -75,7 +94,7 @@ export default function StudentDashboard() {
         <StatCard title="Upcoming Today" value={stats.upcomingToday} icon={<Clock />} color="var(--warning)" />
         <StatCard 
           title="My Violations" 
-          value={stats.violations} 
+          value={`${stats.violations} (${stats.alerts} Alerts)`} 
           icon={<ShieldAlert />} 
           color="var(--danger)" 
           onClick={() => navigate('/student/violations')}
@@ -108,7 +127,11 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-display font-bold text-white mb-6">Recent Activity</h2>
           <div className="space-y-4">
             {recentActivity.length > 0 ? recentActivity.map(session => (
-              <GlassCard key={session.id} className="p-4 flex items-center justify-between border-white/5">
+              <GlassCard 
+                key={session.id} 
+                className="p-4 flex items-center justify-between border-white/5 cursor-pointer hover:border-[#00B4D8]/30 transition-all"
+                onClick={() => navigate(`/student/exams/${session.examId}/results`)}
+              >
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${session.incidents?.length > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
                     {session.incidents?.length > 0 ? <ShieldAlert className="w-4 h-4 text-red-400" /> : <CheckCircle className="w-4 h-4 text-green-400" />}
@@ -120,10 +143,15 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
-                <StatusBadge 
-                  status={session.incidents?.length > 0 ? `${session.incidents.length}` : 'Clean'} 
-                  variant={session.incidents?.length > 0 ? 'danger' : 'success'} 
-                />
+                <div className="flex flex-col items-end">
+                  <div className="text-xs font-bold text-white">
+                    {session.score !== undefined ? `${session.score}/${session.totalQuestions || '?'}` : '--'}
+                  </div>
+                  <StatusBadge 
+                    status={session.incidents?.length > 0 ? `${session.incidents.length} Flags` : 'Clean'} 
+                    variant={session.incidents?.length > 0 ? 'danger' : 'success'} 
+                  />
+                </div>
               </GlassCard>
             )) : (
               <div className="py-12 text-center bg-white/5 border border-white/10 border-dashed rounded-3xl">
